@@ -4,11 +4,11 @@ from pretty_html_table import build_table
 import pandas as pd
 from formatting import jsonformatterv2 as jsonformatter
 from formatting import sqlformatterv5 as sqlformatter
-import sql
+import pyjap.SQLHandler as SQLHandler
 
 logging.info("Testing!")
 
-sqlcon = sql.SQLHandler('GDBA_sit')
+sqlcon = SQLHandler.SQLHandler('GDBA_sit')
 sqlcon.connect_to_sqlserver()
 sqlcon.execute_query("""
 PRINT('Hello world!')
