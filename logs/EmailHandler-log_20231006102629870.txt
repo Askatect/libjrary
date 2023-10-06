@@ -1,0 +1,7 @@
+2023-10-06 10:26:29,871 INFO Logger configured.
+2023-10-06 10:26:30,237 INFO Email handler class configured.
+2023-10-06 10:26:30,238 INFO Attempting to connect to JRA.Euler@outlook.com on smtp-mail.outlook.com.
+2023-10-06 10:26:30,843 INFO Successfully connected to smtp-mail.outlook.com.
+2023-10-06 10:26:30,843 INFO Attempting to send email from JRA.Euler@outlook.com...
+2023-10-06 10:26:32,173 INFO Email sent successfully.
+2023-10-06 10:26:32,220 INFO Closed connection to JRA.Euler@outlook.com on JRA.Euler@outlook.com.

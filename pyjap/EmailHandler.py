@@ -47,7 +47,7 @@ class EmailHandler:
                    to: list|str, 
                    cc: list|str = [], 
                    bcc: list|str = [], 
-                   subject: str = None,
+                   subject: str = "",
                    body_html: str = None,
                    body_alt_text: str = None
     ):
@@ -67,7 +67,8 @@ class EmailHandler:
         message["Cc"] = ",".join(cc)
         message["Subject"] = subject
         message.attach(MIMEText(body_alt_text, "plain"))
-        message.attach(MIMEText(body_html, "html"))
+        if body_html is not None:
+            message.attach(MIMEText(body_html, "html"))
         try:
             self.connection.sendmail(self.params['email'], to + cc + bcc, message.as_string())
         except:
@@ -86,14 +87,7 @@ class EmailHandler:
             logging.error("Failed to close connection.")
         finally:
             self.connected = False
-            logging.info(f"Closed connection to {self.params['email']} on {self.params['email']}.")
+            logging.info(f"Closed connection to {self.params['email']} on {self.params['smtp']}.")
         return
-        
-test = EmailHandler(None, 'joshua.r.appleton@outlook.com', 'Org@n!53', 'smtp-mail.outlook.com', 587)
-test.send_email(['joshua.rueben@hotmail.co.uk'], 
-                [],
-                'osujah@gmail.com',
-                'Test Email',
-                'Just <strong>checking</strong> some HTML.',
-                "<strong>Alternative</strong> text.")
-test.close_connection()
+    
+logging.info("Email handler class configured.")
