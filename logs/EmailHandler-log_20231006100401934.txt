@@ -1,6 +1,0 @@
-2023-10-06 10:04:01,937 INFO Logger configured.
-2023-10-06 10:04:02,332 INFO Email handler class configured.
-2023-10-06 10:04:02,333 INFO Attempting to connect to JRA.Notifications.Euler@gmail.com on smtp.gmail.com.
-2023-10-06 10:04:03,060 ERROR Failed to connect to smtp.gmail.com.
-2023-10-06 10:04:03,061 WARNING No open connection.
-2023-10-06 10:04:03,061 WARNING No open connection.

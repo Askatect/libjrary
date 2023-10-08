@@ -1,6 +1,9 @@
 import logger
 import logging
 
+import numpy as np
+import pandas as pd
+
 # class QueryLevel:
 # 	def __init__(self, level: int):
 # 		self.level = level
@@ -808,3 +811,41 @@ def jsonformatterv2(json: str):
 	logging.info('Returning formatted JSON.')
 	
 	return json
+
+def dataframe_to_html(df: pd.DataFrame, monogradient_cols: list = [], bigradient_cols: list = []):
+	df = df.fillna('')
+	col_info = {}
+	for col in monogradient_cols + bigradient_cols:
+		col_info[col] = {}
+		col_info[col]['min'] = df.min()[col]
+		col_info[col]['max'] = df.max()[col]
+	colours = {
+		'main': '#181848',
+		'positive': '#8c1b1b',
+		'null': '#8c8c1b',
+		'negative': '#1b8c1b',
+		'black': '#000000',
+		'white': '#ffffff',
+		'dark-accent': '#541b8c',
+		'light-accent': '#72abe3'
+	}
+	html = ""
+	html += '<table style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid #080818;border-collapse:collapse">\n\t<tr style="background-color:#181848;color:#D8D8EE">\n\t\t<th style="border:2px solid #080818">' + df.index.name + '</th>\n'
+	for header in df.columns:
+		html += '\t\t<th style="border:2px solid #080818">' + header + '</th>\n'
+	html += '\t</tr>\n'
+	for index, row in df.iterrows():
+		html += '\t</tr>\n\t\t<td style="border:2px solid #080818;background-color:#181848;color:#D8D8EE">' + str(index) + '</td>\n'
+		for value in row.values:
+			html += '\t\t<td style="border:1px solid #080818;background-color:#D8D8EE;color:#080818">' + str(value) + '</td>\n'
+		html += '\t</tr>\n'
+		print(index, row)
+	html += '</table>'
+	return html
+
+df = pd.read_csv("C:/Users/joshu/Downloads/goodreads_library_export.csv", index_col = 'Book Id').head()
+html = dataframe_to_html(df)
+print(html)
+with open("C:/Users/joshu/Downloads/testtable.html", "w") as file:
+	file.write(html)
+	file.close()
