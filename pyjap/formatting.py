@@ -1,6 +1,6 @@
 import logger
 import logging
-
+import pyjap.utilities as utilities
 import numpy as np
 import pandas as pd
 
@@ -812,40 +812,54 @@ def jsonformatterv2(json: str):
 	
 	return json
 
-def dataframe_to_html(df: pd.DataFrame, monogradient_cols: list = [], bigradient_cols: list = []):
-	df = df.fillna('')
+def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = []):
 	col_info = {}
-	for col in monogradient_cols + bigradient_cols:
+	for col in gradient_cols:
 		col_info[col] = {}
-		col_info[col]['min'] = df.min()[col]
-		col_info[col]['max'] = df.max()[col]
+		col_info[col]['min'] = df[col].min(skipna=True)
+		col_info[col]['max'] = df[col].max(skipna=True)
+		col_info[col]['signed'] = (col_info[col]['min'] < 0)
+	df[gradient_cols] = df[gradient_cols].fillna(0)
+	df = df.fillna('')
 	colours = {
 		'main': '#181848',
-		'positive': '#8c1b1b',
+		'positive': '#1b8c1b',
 		'null': '#8c8c1b',
-		'negative': '#1b8c1b',
+		'negative': '#8c1b1b',
 		'black': '#000000',
 		'white': '#ffffff',
 		'dark-accent': '#541b8c',
 		'light-accent': '#72abe3'
 	}
 	html = ""
-	html += '<table style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid #080818;border-collapse:collapse">\n\t<tr style="background-color:#181848;color:#D8D8EE">\n\t\t<th style="border:2px solid #080818">' + df.index.name + '</th>\n'
+	html += f'<table style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid {colours["black"]};border-collapse:collapse">\n'
+	html += f'\t<tr style="color:{colours["white"]}">\n\t\t<th style="background-color:{colours["dark-accent"]};border:2px solid {colours["black"]}">{df.index.name}</th>\n'
 	for header in df.columns:
-		html += '\t\t<th style="border:2px solid #080818">' + header + '</th>\n'
+		html += f'\t\t<th style="background-color:{colours["main"]};border:2px solid {colours["black"]}">{header}</th>\n'
 	html += '\t</tr>\n'
 	for index, row in df.iterrows():
-		html += '\t</tr>\n\t\t<td style="border:2px solid #080818;background-color:#181848;color:#D8D8EE">' + str(index) + '</td>\n'
-		for value in row.values:
-			html += '\t\t<td style="border:1px solid #080818;background-color:#D8D8EE;color:#080818">' + str(value) + '</td>\n'
+		html += f'\t</tr>\n\t\t<td style="border:2px solid {colours["black"]};background-color:{colours["dark-accent"]};color:{colours["white"]}">{str(index)}</td>\n'
+		for col, value in row.to_dict().items():
+			if col in gradient_cols:
+				if col_info[col]['signed']:
+					fontcolour = colours["white"]
+					if value < 0:
+						background = utilities.gradient_hex(value, col_info[col]['min'], 0, colours["negative"], colours["null"])
+					else:
+						background = utilities.gradient_hex(value, col_info[col]['max'], 0, colours["positive"], colours["null"])
+				else:
+					background = utilities.gradient_hex(value, col_info[col]['min'], col_info[col]['max'], colours["white"], colours["light-accent"])
+					fontcolour = colours["black"]
+			else:
+				background = colours["white"]
+				fontcolour = colours["black"]
+			html += f'\t\t<td style="border:1px solid {colours["black"]};background-color:{background};color:{fontcolour}">{str(value)}</td>\n'
 		html += '\t</tr>\n'
-		print(index, row)
 	html += '</table>'
 	return html
 
-df = pd.read_csv("C:/Users/joshu/Downloads/goodreads_library_export.csv", index_col = 'Book Id').head()
-html = dataframe_to_html(df)
-print(html)
-with open("C:/Users/joshu/Downloads/testtable.html", "w") as file:
+df = pd.read_csv("C:/Users/JoshAppleton/Downloads/goodreads_library_export.csv", index_col = 'Book Id')
+html = dataframe_to_html(df, ['My Rating', 'Average Rating', 'Number of Pages', 'Year Published', 'Original Publication Year', 'Read Count', 'Owned Copies'])
+with open("C:/Users/JoshAppleton/Downloads/testtable.html", "w", encoding = 'utf-8') as file:
 	file.write(html)
 	file.close()

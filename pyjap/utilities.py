@@ -60,12 +60,13 @@ def hsl_to_hex(hsl: tuple):
     return rgb_to_hex(hsl_to_rgb(hsl))
 
 def linear_interpolation(x, xmin, xmax, ymin, ymax):
-    return ymin + (ymax - ymin)*(x - xmin)/(xmax - xmin)
+    if xmin == xmax:
+        return ymin
+    else:
+        return ymin + (ymax - ymin)*(x - xmin)/(xmax - xmin)
 
 def gradient_rgb(target, lower, upper, rgbmin, rgbmax):
     return tuple(int(linear_interpolation(target, lower, upper, rgbmin[i], rgbmax[i])) for i in range(0, 3))
 
 def gradient_hex(target, lower, upper, hexmin, hexmax):
     return rgb_to_hex(gradient_rgb(target, lower, upper, hex_to_rgb(hexmin), hex_to_rgb(hexmax)))
-
-print(gradient_hex(0.87, 0, 1, '#181848', '#FFFFFF'))
