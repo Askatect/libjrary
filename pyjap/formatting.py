@@ -859,9 +859,3 @@ def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict 
 		html += '\t</tr>\n'
 	html += '</table>'
 	return html
-
-df = pd.read_csv("C:/Users/JoshAppleton/Downloads/goodreads_library_export.csv", index_col = 'Book Id').sort_values('Number of Pages', ascending = False)
-html = dataframe_to_html(df, ['My Rating', 'Average Rating', 'Number of Pages', 'Year Published', 'Original Publication Year', 'Read Count', 'Owned Copies'])
-with open("C:/Users/JoshAppleton/Downloads/testtable.html", "w", encoding = 'utf-8') as file:
-	file.write(html)
-	file.close()

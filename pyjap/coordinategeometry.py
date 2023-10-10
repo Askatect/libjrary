@@ -2,10 +2,11 @@ import numpy as np
 
 
 def line_from_points(p: tuple, q: tuple):
-    # Returns gradient and y-intercept of straight
-    # line given two points on the line. If the
-    # gradient is infinite, the x-intercept is
-    # returned instead.
+    """
+    Returns gradient and y-intercept of straight line given 
+    two points on the line. If the gradient is infinite, the 
+    x-intercept is returned instead.
+    """
     if p[0] == q[0] or np.inf in [p[0], q[0]]:
         return np.inf, p[0]
     else:
@@ -14,10 +15,12 @@ def line_from_points(p: tuple, q: tuple):
 
 
 def line_from_grad(m: float, p: tuple):
-    # Returns gradient and y-intercept of straight
-    # line given two points on the line. If the
-    # gradient is infinite, the x-intercept is
-    # returned instead.
+    """
+    Returns gradient and y-intercept of straight
+    line given two points on the line. If the
+    gradient is infinite, the x-intercept is
+    returned instead.
+    """
     if m == np.inf:
         return m, p[0]
     else:
@@ -25,17 +28,21 @@ def line_from_grad(m: float, p: tuple):
 
 
 def midpoint(p: tuple, q: tuple):
-    # Returns the midpoint of the straight line
-    # through points p and q.
+    """
+    Returns the midpoint of the straight line
+    through points p and q.
+    """
     return 0.5 * (p[0] + q[0]), 0.5 * (p[1] + q[1])
 
 
 def line_intersection(line1: tuple, line2: tuple):
-    # Returns the intersection of two lines.
-    # Lines should be given in the form
-    # (gradient, y-intercept). If the gradient is
-    # infinite, use the x-intercept instead of the
-    # y-intercept.
+    """
+    Returns the intersection of two lines.
+    Lines should be given in the form
+    (gradient, y-intercept). If the gradient is
+    infinite, use the x-intercept instead of the
+    y-intercept.
+    """
     m1 = line1[0]
     c1 = line1[1]
     m2 = line2[0]
