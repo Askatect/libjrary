@@ -1,6 +1,7 @@
 import logger
 import logging
-import pyjap.utilities as utilities
+import utilities as utilities
+import json
 import numpy as np
 import pandas as pd
 
@@ -812,35 +813,33 @@ def jsonformatterv2(json: str):
 	
 	return json
 
-def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = []):
+def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict = json.load(open("pyjap/config.json"))["personal"]):
 	col_info = {}
 	for col in gradient_cols:
 		col_info[col] = {}
-		col_info[col]['min'] = df[col].min(skipna=True)
-		col_info[col]['max'] = df[col].max(skipna=True)
+		min = df[col].min(skipna=True)
+		if np.isnan(min):
+			col_info[col]['min'] = 0
+		else:
+			col_info[col]['min'] = min
+		max = df[col].max(skipna=True)
+		if np.isnan(max):
+			col_info[col]['max'] = 0
+		else:
+			col_info[col]['max'] = max
 		col_info[col]['signed'] = (col_info[col]['min'] < 0)
 	df[gradient_cols] = df[gradient_cols].fillna(0)
 	df = df.fillna('')
-	colours = {
-		'main': '#181848',
-		'positive': '#1b8c1b',
-		'null': '#8c8c1b',
-		'negative': '#8c1b1b',
-		'black': '#000000',
-		'white': '#ffffff',
-		'dark-accent': '#541b8c',
-		'light-accent': '#72abe3'
-	}
 	html = ""
 	html += f'<table style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid {colours["black"]};border-collapse:collapse">\n'
 	html += f'\t<tr style="color:{colours["white"]}">\n\t\t<th style="background-color:{colours["dark-accent"]};border:2px solid {colours["black"]}">{df.index.name}</th>\n'
 	for header in df.columns:
 		html += f'\t\t<th style="background-color:{colours["main"]};border:2px solid {colours["black"]}">{header}</th>\n'
 	html += '\t</tr>\n'
-	for index, row in df.iterrows():
+	for i, (index, row) in enumerate(df.iterrows()):
 		html += f'\t</tr>\n\t\t<td style="border:2px solid {colours["black"]};background-color:{colours["dark-accent"]};color:{colours["white"]}">{str(index)}</td>\n'
 		for col, value in row.to_dict().items():
-			if col in gradient_cols:
+			if col in gradient_cols and value >= col_info[col]['min'] and value <= col_info[col]['max']:
 				if col_info[col]['signed']:
 					fontcolour = colours["white"]
 					if value < 0:
@@ -851,14 +850,17 @@ def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = []):
 					background = utilities.gradient_hex(value, col_info[col]['min'], col_info[col]['max'], colours["white"], colours["light-accent"])
 					fontcolour = colours["black"]
 			else:
-				background = colours["white"]
+				if i % 2 == 0:
+					background = colours["white"]
+				else:
+					background = colours["grey"]
 				fontcolour = colours["black"]
 			html += f'\t\t<td style="border:1px solid {colours["black"]};background-color:{background};color:{fontcolour}">{str(value)}</td>\n'
 		html += '\t</tr>\n'
 	html += '</table>'
 	return html
 
-df = pd.read_csv("C:/Users/JoshAppleton/Downloads/goodreads_library_export.csv", index_col = 'Book Id')
+df = pd.read_csv("C:/Users/JoshAppleton/Downloads/goodreads_library_export.csv", index_col = 'Book Id').sort_values('Number of Pages', ascending = False)
 html = dataframe_to_html(df, ['My Rating', 'Average Rating', 'Number of Pages', 'Year Published', 'Original Publication Year', 'Read Count', 'Owned Copies'])
 with open("C:/Users/JoshAppleton/Downloads/testtable.html", "w", encoding = 'utf-8') as file:
 	file.write(html)
