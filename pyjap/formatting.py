@@ -813,7 +813,7 @@ def jsonformatterv2(json: str):
 	
 	return json
 
-def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict = json.load(open("pyjap/config.json"))["personal"]):
+def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict = json.load(open("pyjap/config.json"))["palettes"]["personal"]):
 	col_info = {}
 	for col in gradient_cols:
 		col_info[col] = {}
@@ -832,12 +832,12 @@ def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict 
 	df = df.fillna('')
 	html = ""
 	html += f'<table style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid {colours["black"]};border-collapse:collapse">\n'
-	html += f'\t<tr style="color:{colours["white"]}">\n\t\t<th style="background-color:{colours["dark-accent"]};border:2px solid {colours["black"]}">{df.index.name}</th>\n'
+	html += f'\t<tr style="color:{colours["white"]}">\n\t\t<th style="background-color:{colours["dark_accent"]};border:2px solid {colours["black"]}">{df.index.name}</th>\n'
 	for header in df.columns:
 		html += f'\t\t<th style="background-color:{colours["main"]};border:2px solid {colours["black"]}">{header}</th>\n'
 	html += '\t</tr>\n'
 	for i, (index, row) in enumerate(df.iterrows()):
-		html += f'\t</tr>\n\t\t<td style="border:2px solid {colours["black"]};background-color:{colours["dark-accent"]};color:{colours["white"]}">{str(index)}</td>\n'
+		html += f'\t</tr>\n\t\t<td style="border:2px solid {colours["black"]};background-color:{colours["dark_accent"]};color:{colours["white"]}">{str(index)}</td>\n'
 		for col, value in row.to_dict().items():
 			if col in gradient_cols and value >= col_info[col]['min'] and value <= col_info[col]['max']:
 				if col_info[col]['signed']:
@@ -847,7 +847,7 @@ def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict 
 					else:
 						background = utilities.gradient_hex(value, col_info[col]['max'], 0, colours["positive"], colours["null"])
 				else:
-					background = utilities.gradient_hex(value, col_info[col]['min'], col_info[col]['max'], colours["white"], colours["light-accent"])
+					background = utilities.gradient_hex(value, col_info[col]['min'], col_info[col]['max'], colours["white"], colours["light_accent"])
 					fontcolour = colours["black"]
 			else:
 				if i % 2 == 0:
@@ -859,3 +859,9 @@ def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict 
 		html += '\t</tr>\n'
 	html += '</table>'
 	return html
+
+df = pd.read_csv("C:/Users/JoshAppleton/Downloads/goodreads_library_export.csv", index_col='Book Id')
+print(df.head())
+numeric_cols = list(df.select_dtypes(include='number').columns)
+f = open("C:/Users/JoshAppleton/Downloads/testtable.html", 'w', encoding='utf-8')
+f.write(dataframe_to_html(df, gradient_cols=numeric_cols, colours = json.load(open("pyjap/config.json"))["palettes"]["euler"]))

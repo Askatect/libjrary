@@ -1,24 +1,26 @@
 {
-    "personal": {
-        "main": "#181848",
-		"positive": "#1b8c1b",
-		"null": "#8c8c1b",
-		"negative": "#8c1b1b",
-		"black": "#000000",
-        "grey": "#cfcfcf",
-		"white": "#ffffff",
-		"dark-accent": "#541b8c",
-		"light-accent": "#72abe3"
-    },
-    "euler": {
-        "main": "#380435",
-        "black": "#092318",
-        "white": "#ffffff",
-        "light-accent": "#ff00f8",
-        "dark-accent": "#000000",
-        "grey": "#f2f2f2",
-        "postive": "#12d93d",
-        "null": "#ffa800",
-        "negative": "#bf211f"        
+"palettes": {
+        "personal": {
+            "main": "#181848",
+            "positive": "#1b8c1b",
+            "null": "#8c8c1b",
+            "negative": "#8c1b1b",
+            "black": "#000000",
+            "grey": "#cfcfcf",
+            "white": "#ffffff",
+            "dark_accent": "#541b8c",
+            "light_accent": "#72abe3"
+        },
+        "euler": {
+            "main": "#380435",
+            "black": "#092318",
+            "white": "#ffffff",
+            "light_accent": "#ff00f8",
+            "dark_accent": "#000000",
+            "grey": "#f2f2f2",
+            "postive": "#12d93d",
+            "null": "#ffa800",
+            "negative": "#bf211f"        
+        }
     }
 }
