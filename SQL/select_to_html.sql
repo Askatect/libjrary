@@ -119,7 +119,7 @@ BEGIN
             EXEC sp_executesql @cmd, N'@value_char varchar(max) OUTPUT, @value_float float OUTPUT', @value_char OUTPUT, @value_float OUTPUT
 
             IF @c = 1
-                SET @html += CONCAT(CHAR(9), CHAR(9), '<td style="border:2px solid ', @black,';background-color:', @dark_accent, ';color:', @white, '">', @value_char, '</td>', CHAR(10))
+                SET @html += CONCAT(CHAR(9), CHAR(9), '<td style="border:2px solid ', @black,';background-color:', @dark_accent, ';color:', @white, ';text-align:center">', @value_char, '</td>', CHAR(10))
             ELSE
             BEGIN
 				IF @numeric = 1
