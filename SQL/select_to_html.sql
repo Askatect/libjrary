@@ -61,7 +61,8 @@ BEGIN
         @value_float float,
         @value_char varchar(max),
         @background char(7),
-        @fontcolour char(7)
+        @fontcolour char(7),
+		@text_align varchar(6)
     DECLARE row_cursor cursor DYNAMIC SCROLL FOR
         SELECT [c], [col], [numeric], [min], [max]
         FROM #columns WITH (NOLOCK)
@@ -88,15 +89,13 @@ BEGIN
         INTO @c, @col, @numeric, @min, @max
     END
 
-    SELECT * FROM #columns
-
     DECLARE @separator char(70) = CONCAT('</th>', CHAR(10), CHAR(9), CHAR(9), '<th style="background-color:', @main, ';border:2px solid ', @black, '">')
 	DECLARE @html varchar(max) = ''
     SET @html += '<table style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid' + @black + ';border-collapse:collapse">' + CHAR(10)
     SET @html += (SELECT 
         CONCAT(
             CHAR(9), '<tr style="color:' + @white + '">', CHAR(10), 
-            CHAR(9), CHAR(9), '<th style="background-color:' + @dark_accent + ';border:2px solid ' + @black + '">', STRING_AGG([col], @separator), '</th>', CHAR(10), 
+            CHAR(9), CHAR(9), '<th style="background-color:' + @main + ';border:2px solid ' + @black + '">', STRING_AGG([col], @separator), '</th>', CHAR(10), 
             CHAR(9), '</tr>', CHAR(10)
         ) 
         FROM #columns
@@ -123,6 +122,10 @@ BEGIN
                 SET @html += CONCAT(CHAR(9), CHAR(9), '<td style="border:2px solid ', @black,';background-color:', @dark_accent, ';color:', @white, '">', @value_char, '</td>', CHAR(10))
             ELSE
             BEGIN
+				IF @numeric = 1
+					SET @text_align = 'right'
+				ELSE
+					SET @text_align = 'center'
                 IF @numeric = 1 AND @min < 0
                 BEGIN
                     IF @value_float < 0
@@ -141,7 +144,7 @@ BEGIN
                         SET @background = @grey
                     SET @fontcolour = @black
                 END
-                SET @html += CONCAT(CHAR(9), CHAR(9), '<td style="border:2px solid ', @black,';background-color:', @background, ';color:', @fontcolour, '">', @value_char, '</td>', CHAR(10))
+                SET @html += CONCAT(CHAR(9), CHAR(9), '<td style="border:2px solid ', @black,';background-color:', @background, ';color:', @fontcolour, ';text-align:', @text_align, '">', @value_char, '</td>', CHAR(10))
             END
 
             FETCH NEXT FROM row_cursor

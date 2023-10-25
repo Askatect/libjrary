@@ -22,8 +22,8 @@ BEGIN
 				SELECT [lower].[rgb],
 					[lower].[value] AS [lower],
 					[upper].[value] AS [upper]
-				FROM [dbo].[hexcode_to_rgb]('#181848') AS [lower]
-					INNER JOIN [dbo].[hexcode_to_rgb]('#FFFFFF') AS [upper]
+				FROM [dbo].[hexcode_to_rgb](@hexmin) AS [lower]
+					INNER JOIN [dbo].[hexcode_to_rgb](@hexmax) AS [upper]
 						ON [lower].[rgb] = [upper].[rgb]
 			) AS [T]
 		) AS [T]
