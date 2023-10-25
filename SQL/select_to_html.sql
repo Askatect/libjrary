@@ -89,13 +89,13 @@ BEGIN
         INTO @c, @col, @numeric, @min, @max
     END
 
-    DECLARE @separator char(70) = CONCAT('</th>', CHAR(10), CHAR(9), CHAR(9), '<th style="background-color:', @main, ';border:2px solid ', @black, '">')
+    DECLARE @separator char(70) = CONCAT('</th>', CHAR(10), CHAR(9), CHAR(9), '<th style="background-color:', @main, ';border:2px solid ', @black, 'text-align:center">')
 	DECLARE @html varchar(max) = ''
     SET @html += '<table style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid' + @black + ';border-collapse:collapse">' + CHAR(10)
     SET @html += (SELECT 
         CONCAT(
             CHAR(9), '<tr style="color:' + @white + '">', CHAR(10), 
-            CHAR(9), CHAR(9), '<th style="background-color:' + @main + ';border:2px solid ' + @black + '">', STRING_AGG([col], @separator), '</th>', CHAR(10), 
+            CHAR(9), CHAR(9), '<th style="background-color:' + @main + ';border:2px solid ' + @black + 'text-align:center">', STRING_AGG([col], @separator), '</th>', CHAR(10), 
             CHAR(9), '</tr>', CHAR(10)
         ) 
         FROM #columns
