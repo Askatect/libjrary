@@ -837,7 +837,7 @@ def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict 
 		html += f'\t\t<th style="background-color:{colours["main"]};border:2px solid {colours["black"]}">{header}</th>\n'
 	html += '\t</tr>\n'
 	for i, (index, row) in enumerate(df.iterrows()):
-		html += f'\t</tr>\n\t\t<td style="border:2px solid {colours["black"]};background-color:{colours["dark_accent"]};color:{colours["white"]}">{str(index)}</td>\n'
+		html += f'\t<tr>\n\t\t<td style="border:2px solid {colours["black"]};background-color:{colours["dark_accent"]};color:{colours["white"]}">{str(index)}</td>\n'
 		for col, value in row.to_dict().items():
 			if col in gradient_cols and value >= col_info[col]['min'] and value <= col_info[col]['max']:
 				if col_info[col]['signed']:

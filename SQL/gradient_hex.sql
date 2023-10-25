@@ -30,3 +30,4 @@ BEGIN
 	)
 	RETURN @hexcode
 END
+GO
