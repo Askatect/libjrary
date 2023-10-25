@@ -22,7 +22,6 @@ BEGIN
         INTO [dbo].[temp] 
         FROM (', @query, ') AS [T]
     ')
-    --PRINT(@cmd)
     EXEC(@cmd)
 
     DROP TABLE IF EXISTS #columns;
@@ -39,8 +38,6 @@ BEGIN
     WHERE [object_id] = OBJECT_ID('[dbo].[temp]')
     ORDER BY [column_id]
 
-    --CREATE CLUSTERED INDEX columns_index ON #columns ([R] ASC);
-
     ALTER TABLE [dbo].[temp]
     ADD [ID] int IDENTITY(0, 1) NOT NULL, [R] int;
 
@@ -50,7 +47,6 @@ BEGIN
         FROM (SELECT ROW_NUMBER() OVER(ORDER BY ', ISNULL(@order_by, (SELECT TOP(1) [col] FROM #columns)), ') - 1 AS [R], [ID] FROM [dbo].[temp]) AS [T]
         WHERE [dbo].[temp].[ID] = [T].[ID]
     ')
-    --PRINT(@cmd)
     EXEC(@cmd)
 
     ALTER TABLE [dbo].[temp]
@@ -85,7 +81,6 @@ BEGIN
                     [max] = CONVERT(float, (SELECT MAX([', @col, ']) FROM [dbo].[temp]))
                 WHERE [col] = ''', @col, '''
             ')
-            --PRINT(@cmd)
             EXEC(@cmd)
         END
 
@@ -122,7 +117,6 @@ BEGIN
                 FROM [dbo].[temp]
                 WHERE [R] = ', @R, '
             ')
-            --PRINT(@cmd)
             EXEC sp_executesql @cmd, N'@value_char varchar(max) OUTPUT, @value_float float OUTPUT', @value_char OUTPUT, @value_float OUTPUT
 
             IF @c = 1
@@ -159,7 +153,6 @@ BEGIN
     END
 
     SET @html += '</table>'
-    --PRINT(@html)
 
     CLOSE row_cursor
     DEALLOCATE row_cursor
