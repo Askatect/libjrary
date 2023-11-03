@@ -1,7 +1,8 @@
 CREATE OR ALTER PROCEDURE [dbo].[select_to_html] (
     @query varchar(max),
     @order_by varchar(max) = NULL,
-	@out varchar(max) = '' OUTPUT
+	@out varchar(max) = '' OUTPUT,
+	@sum bit = 0
 )
 AS
 BEGIN
