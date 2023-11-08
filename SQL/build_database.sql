@@ -1,6 +1,3 @@
-SET NOCOUNT ON
-GO
-
 CREATE OR ALTER PROCEDURE [dbo].[print] (@string nvarchar(max))
 AS
 BEGIN
@@ -13,6 +10,15 @@ BEGIN
 END
 GO
 
+CREATE OR ALTER PROCEDURE [dbo].[database_builder_builder] (
+	@print bit = 1,
+	@exec bit = 0
+)
+AS
+
+IF @print = 0
+	SET NOCOUNT ON
+
 DECLARE @sql nvarchar(max) = '',
 	@schema nvarchar(max),
 	@table nvarchar(max),
@@ -22,7 +28,8 @@ DECLARE @sql nvarchar(max) = '',
 SET @sql = CONCAT('
 CREATE OR ALTER PROCEDURE [dbo].[build_', LOWER(DB_NAME()), '] (
 	@print bit = 1,
-	@replace bit = 0
+	@replace bit = 0,
+	@exec bit = 0
 )
 AS
 BEGIN
@@ -33,8 +40,8 @@ DECLARE @cmd nvarchar(max) = ''''
 /* Schemata */
 
 SET @sql += '
-IF @print = 1
-	PRINT(''Building schemata...'')
+--============================================================--
+/* Schemata */
 
 BEGIN TRY'
 
@@ -67,10 +74,11 @@ BEGIN
       SET @sql += CONCAT('
 IF (SCHEMA_ID(''', @schema, ''') IS NULL)
 BEGIN
-	SET @sql = ''CREATE SCHEMA ', @schema, '''
+	SET @cmd = ''CREATE SCHEMA ', @schema, '''
 	IF @print = 1
-		PRINT(@sql)
-	EXEC(@sql)
+		PRINT(@cmd)
+	IF @exec = 1
+		EXEC(@cmd)
 END
 ')
 
@@ -92,8 +100,9 @@ END CATCH
 Constraints and Default Constraints */
 
 SET @sql += '
-IF @print = 1
-	PRINT(''Building tables...'')
+--============================================================--
+/* Tables, Columns, Primary Keys, Unique Constraints, Check 
+Constraints and Default Constraints */
 '
 
 DECLARE tables_cursor cursor FAST_FORWARD FOR
@@ -165,7 +174,8 @@ BEGIN
 	SET @cmd = ''DROP TABLE IF EXISTS [', @schema, '].[', @table, ']''
 	IF @print = 1
 		PRINT(@cmd)
-	EXEC(@cmd)
+	IF @exec = 1
+		EXEC(@cmd)
 END
 IF (OBJECT_ID(''[', @schema, '].[', @table, ']'') IS NULL)
 BEGIN
@@ -176,7 +186,8 @@ CREATE TABLE [', @schema, '].[', @table, '] (
 ''
 	IF @print = 1
 		PRINT(@cmd)
-	EXEC(@cmd)
+	IF @exec = 1
+		EXEC(@cmd)
 END
 ')
 
@@ -190,7 +201,154 @@ CLOSE tables_cursor
 DEALLOCATE tables_cursor
 
 --============================================================--
+/* Foreign Keys */
+
+SET @sql += '
+--============================================================--
+/* Foreign Keys */
+'
+
+DECLARE foreignkey_cursor cursor FAST_FORWARD FOR
+SELECT [T].[schema],
+	[T].[table],
+	[T].[foreign_key],
+	CONCAT('ALTER TABLE [', [T].[schema], '].[', [T].[table], '] ADD CONSTRAINT ', [T].[foreign_key], ' REFERENCES (',  [T].[columns], ') REFERENCES [', [T].[schema_ref], '].[', [T].[table_ref], '](', [T].[columns_ref], ')')
+FROM (
+	SELECT [fk].[name] AS [foreign_key],
+		SCHEMA_NAME([t].[schema_id]) AS [schema],
+		[t].[name] AS [table],
+		STUFF((
+			SELECT CONCAT(', [', [c].[name], ']')
+			FROM sys.foreign_key_columns AS [fkc]
+				INNER JOIN sys.columns AS [c]
+					ON [c].[object_id] = [fkc].[parent_object_id]
+					AND [c].[column_id] = [fkc].[parent_column_id]
+			WHERE [fkc].[parent_object_id] = [t].[object_id]
+				AND [fkc].[constraint_object_id] = [fk].[object_id]
+			FOR XML PATH('')
+		), 1, 2, '') AS [columns],
+		SCHEMA_NAME([s].[schema_id]) AS [schema_ref],
+		[s].[name] AS [table_ref],
+		STUFF((
+			SELECT CONCAT(', [', [c].[name], ']')
+			FROM sys.foreign_key_columns AS [fkc]
+				INNER JOIN sys.columns AS [c]
+					ON [c].[object_id] = [fkc].[referenced_object_id]
+					AND [c].[column_id] = [fkc].[referenced_column_id]
+			WHERE [fkc].[parent_object_id] = [t].[object_id]
+				AND [fkc].[constraint_object_id] = [fk].[object_id]
+			FOR XML PATH('')
+		), 1, 2, '') AS [columns_ref]
+	FROM sys.tables AS [t]
+		INNER JOIN sys.foreign_keys AS [fk]
+			ON [fk].[parent_object_id] = [t].[object_id]
+		INNER JOIN sys.tables AS [s]
+			ON [fk].[referenced_object_id] = [s].[object_id]
+) AS [T]
+
+OPEN foreignkey_cursor
+
+FETCH NEXT FROM foreignkey_cursor
+INTO @schema,
+	@table,
+	@detail,
+	@definition
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	SET @sql += CONCAT('
+IF @replace = 1
+BEGIN
+	SET @cmd = ''DROP CONSTRAINT IF EXISTS ', @detail, '''
+	IF @print = 1
+		PRINT(@cmd)
+	IF @exec = 1
+		EXEC(@cmd)
+END
+IF (OBJECT_ID(''', @detail, ''') IS NULL)
+BEGIN
+	SET @cmd = ''', @definition, '''
+	IF @print = 1
+		PRINT(@cmd)
+	IF @exec = 1
+		EXEC(@cmd)
+END
+')
+	
+	FETCH NEXT FROM foreignkey_cursor
+	INTO @schema,
+		@table, 
+		@detail,
+		@definition
+END
+
+CLOSE foreignkey_cursor
+DEALLOCATE foreignkey_cursor
+
+--============================================================--
+/* Views and Triggers */
+
+SET @sql += '
+--============================================================--
+/* Views and Triggers */
+'
+
+DECLARE view_trigger_cursor cursor FAST_FORWARD FOR
+SELECT SCHEMA_NAME([o].[schema_id]) AS [schema],
+	[o].[name], 
+	[type],
+	[sc].[text]
+FROM sys.objects AS [o]
+	INNER JOIN sys.syscomments AS [sc]
+		ON [sc].[id] = [o].[object_id]
+WHERE [o].[type] IN ('TR', 'V')
+
+OPEN view_trigger_cursor
+
+FETCH NEXT FROM view_trigger_cursor
+INTO @schema,
+	@table,
+	@detail,
+	@definition
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	SET @sql += CONCAT('
+IF @replace = 1
+BEGIN
+	SET @cmd = ''DROP ', IIF(@detail = 'V', 'VIEW', 'TRIGGER'), ' IF EXISTS [', @schema, '].[', @table, ']''
+	IF @print = 1
+		PRINT(@cmd)
+	IF @exec = 1
+		EXEC(@cmd)
+END
+IF (OBJECT_ID(''[', @schema, '].[', @table, ']'', ''', @detail, ''') IS NULL)
+BEGIN
+	SET @cmd = ''', REPLACE(@definition, '''', ''''''), '''
+	IF @print = 1
+		PRINT(@cmd)
+	IF @exec = 1
+		EXEC(@cmd)
+END
+')
+
+	FETCH NEXT FROM view_trigger_cursor
+	INTO @schema, 
+		@table,
+		@detail,
+		@definition
+END
+
+CLOSE view_trigger_cursor
+DEALLOCATE view_trigger_cursor
+
+--============================================================--
 /* Indexes */
+
+SET @sql += '
+--============================================================--
+/* Indexes */
+'
 
 DECLARE index_cursor cursor FAST_FORWARD FOR
 SELECT [schema],
@@ -213,10 +371,11 @@ FROM (
 		[i].[name] AS [index],
 		[i].[is_unique],
 		[i].[type_desc] AS [type]
-	FROM sys.tables AS [t]
+	FROM sys.objects AS [t]
 		INNER JOIN sys.indexes AS [i]
 			ON [i].[object_id] = [t].[object_id]
-	WHERE [i].[is_primary_key] = 0
+	WHERE [t].[type] IN ('U', 'V')
+		AND [i].[is_primary_key] = 0
 		AND [i].[is_unique_constraint] = 0
 		AND [i].[index_id] > 0
 ) AS [T]
@@ -237,12 +396,25 @@ BEGIN
 	SET @cmd = ''DROP INDEX IF EXISTS ', @detail, ' ON [', @schema, '].[', @table, ']''
 	IF @print = 1
 		PRINT(@cmd)
-	EXEC(@cmd)
+	IF @exec = 1
+		EXEC(@cmd)
 END
-SET @cmd = ''', @definition, '''
-IF @print = 1
-	PRINT(@cmd)
-EXEC(@cmd)
+IF EXISTS (
+	SELECT 1 
+	FROM sys.indexes AS [i] 
+		INNER JOIN sys.objects AS [t] 
+			ON [t].[object_id] = [i].[parent_object_id] 
+	WHERE SCHEMA_NAME([schema_id]) = ''', @schema, ''' 
+		AND [t].[name] = ''', @table, '''
+		AND [i].[name] = ''', @detail, '''
+)
+BEGIN
+	SET @cmd = ''', @definition, '''
+	IF @print = 1
+		PRINT(@cmd)
+	IF @exec = 1
+		EXEC(@cmd)
+END
 ')
 	
 	FETCH NEXT FROM index_cursor
@@ -256,20 +428,30 @@ CLOSE index_cursor
 DEALLOCATE index_cursor
 
 --============================================================--
-/* Foreign Keys */
 
---============================================================--
-/* Triggers */
+SET @sql += CHAR(10) + 'END'
 
---============================================================--
-/* Views */
+IF @print = 1
+BEGIN
+	IF LEN(@sql) >= 4000
+	BEGIN
+		BEGIN TRY
+			EXECUTE [dbo].[print] @sql
+		END TRY
+		BEGIN CATCH
+			PRINT('Command is too large to print.')
+		END CATCH
+	END
+	ELSE
+		PRINT(@sql)
+END
 
---============================================================--
+IF @exec = 1
+BEGIN
+	EXEC(@sql)
+END
+GO
 
-SET @sql += 'END'
+--DROP PROCEDURE IF EXISTS [dbo].[print]
 
---============================================================--
-
-EXECUTE [dbo].[print] @sql
-
-DROP PROCEDURE IF EXISTS [dbo].[print]
+EXEC [dbo].[database_builder_builder] 1, 1
