@@ -212,7 +212,7 @@ DECLARE foreignkey_cursor cursor FAST_FORWARD FOR
 SELECT [T].[schema],
 	[T].[table],
 	[T].[foreign_key],
-	CONCAT('ALTER TABLE [', [T].[schema], '].[', [T].[table], '] ADD CONSTRAINT ', [T].[foreign_key], ' REFERENCES (',  [T].[columns], ') REFERENCES [', [T].[schema_ref], '].[', [T].[table_ref], '](', [T].[columns_ref], ')')
+	CONCAT('ALTER TABLE [', [T].[schema], '].[', [T].[table], '] ADD CONSTRAINT ', [T].[foreign_key], ' FOREIGN KEY (',  [T].[columns], ') REFERENCES [', [T].[schema_ref], '].[', [T].[table_ref], '](', [T].[columns_ref], ')')
 FROM (
 	SELECT [fk].[name] AS [foreign_key],
 		SCHEMA_NAME([t].[schema_id]) AS [schema],
@@ -259,7 +259,7 @@ BEGIN
 	SET @sql += CONCAT('
 IF @replace = 1
 BEGIN
-	SET @cmd = ''DROP CONSTRAINT IF EXISTS ', @detail, '''
+	SET @cmd = ''DROP FOREIGN KEY IF EXISTS ', @detail, '''
 	IF @print = 1
 		PRINT(@cmd)
 	IF @exec = 1
@@ -403,7 +403,7 @@ IF EXISTS (
 	SELECT 1 
 	FROM sys.indexes AS [i] 
 		INNER JOIN sys.objects AS [t] 
-			ON [t].[object_id] = [i].[parent_object_id] 
+			ON [t].[object_id] = [i].[object_id] 
 	WHERE SCHEMA_NAME([schema_id]) = ''', @schema, ''' 
 		AND [t].[name] = ''', @table, '''
 		AND [i].[name] = ''', @detail, '''
