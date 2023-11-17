@@ -1,6 +1,20 @@
 import logger
 import logging
 
+def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search: bool = True):
+    if case_insensitive_search:
+        search_string = string.lower()
+        prefix = prefix.lower()
+        suffix = suffix.lower()
+    else:
+        search_string = string
+    prefix_loc = search_string.find(prefix)
+    if prefix_loc == -1:
+        return None
+    prefix_loc += len(prefix)
+    suffix_loc = search_string.find(suffix, prefix_loc)
+    return string[prefix_loc:suffix_loc]
+
 def rgb_to_hex(rgb: tuple):
     hexcode = "#"
     for value in rgb:

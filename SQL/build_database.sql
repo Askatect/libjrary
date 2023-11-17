@@ -1,4 +1,4 @@
-SET NOCOUNT ON
+﻿SET NOCOUNT ON
 GO
 
 CREATE OR ALTER PROCEDURE [dbo].[print] (@string nvarchar(max))
@@ -14,7 +14,7 @@ END
 GO
 
 DECLARE @sql nvarchar(max) = '',
-      @schema nvarchar(max)
+	@schema nvarchar(max)
 
 SET @sql = CONCAT('
 CREATE OR ALTER PROCEDURE [dbo].[build_', LOWER(DB_NAME()), '] (
@@ -39,19 +39,19 @@ DECLARE schemata_cursor cursor FAST_FORWARD FOR
 SELECT [name] AS [schema]
 FROM sys.schemas
 WHERE [name] NOT IN (
-      'public',
-      'guest',
-      'INFORMATION_SCHEMA',
-      'sys',
-      'db_owner',
-      'db_accessadmin',
-      'db_securityadmin',
-      'db_ddladmin',
-      'db_backupoperator',
-      'db_datareader',
-      'db_datawriter',
-      'db_denydatareader',
-      'db_denydatawriter'
+	'public',
+	'guest',
+	'INFORMATION_SCHEMA',
+	'sys',
+	'db_owner',
+	'db_accessadmin',
+	'db_securityadmin',
+	'db_ddladmin',
+	'db_backupoperator',
+	'db_datareader',
+	'db_datawriter',
+	'db_denydatareader',
+	'db_denydatawriter'
 )
 
 OPEN schemata_cursor
@@ -61,7 +61,7 @@ INTO @schema
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
-      SET @sql += CONCAT('
+	SET @sql += CONCAT('
 IF (SCHEMA_ID(''', @schema, ''') IS NULL)
 BEGIN
 	SET @sql = ''CREATE SCHEMA ', @schema, '''
@@ -71,8 +71,8 @@ BEGIN
 END
 ')
 
-      FETCH NEXT FROM schemata_cursor
-      INTO @schema
+	FETCH NEXT FROM schemata_cursor
+	INTO @schema
 END
 
 CLOSE schemata_cursor
@@ -100,7 +100,16 @@ DECLARE tables_cursor cursor FAST_FORWARD FOR
 SELECT SCHEMA_NAME([t].[schema_id]) AS [schema],
 	[t].[name] AS [table],
 	STUFF(
-		(SELECT CONCAT(', ', CHAR(10), CHAR(9), '[', [c].[name], '] ', [d].[name], CASE WHEN [d].[system_type_id] IN (106, 108) THEN CONCAT('(', [d].[precision], ', ', [d].[scale], ')') WHEN [d].[system_type_id] IN (165, 167, 173, 175, 231, 239) THEN CONCAT('(', IIF([c].[max_length] = -1, 'max', CONVERT(varchar, [c].[max_length])), ')') ELSE '' END, IIF([c].[is_nullable] = 1, ' NULL', ' NOT NULL'), IIF([dc].[object_id] IS NOT NULL, CONCAT(' CONSTRAINT ', [dc].[name], ' DEFAULT ', REPLACE([dc].[definition], '''', '''''')), ''), IIF([cc].[is_disabled] = 0, CONCAT(' CONSTRAINT ', [cc].[name], ' CHECK ', REPLACE([cc].[definition], '''', '''''')), ''))
+		(SELECT CONCAT(', ', CHAR(10), CHAR(9), 
+			'[', [c].[name], '] ', 
+			[d].[name], 
+				CASE WHEN [d].[system_type_id] IN (106, 108) THEN CONCAT('(', [d].[precision], ', ', [d].[scale], ')') 
+					WHEN [d].[system_type_id] IN (165, 167, 173, 175, 231, 239) THEN CONCAT('(', IIF([c].[max_length] = -1, 'max', CONVERT(varchar, [c].[max_length])), ')') 
+					ELSE '' END, 
+			IIF([c].[is_nullable] = 1, ' NULL', ' NOT NULL'), 
+			IIF([dc].[object_id] IS NOT NULL, CONCAT(' CONSTRAINT ', [dc].[name], ' DEFAULT ', REPLACE([dc].[definition], '''', '''''')), ''), 
+			IIF([cc].[is_disabled] = 0, CONCAT(' CONSTRAINT ', [cc].[name], ' CHECK ', REPLACE([cc].[definition], '''', '''''')), '')
+		)
 		FROM sys.columns AS [c]
 			INNER JOIN sys.types AS [d]
 				ON [d].[system_type_id] = [c].[system_type_id]

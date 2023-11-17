@@ -813,7 +813,7 @@ def jsonformatterv2(json: str):
 	
 	return json
 
-def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict = json.load(open("pyjap/config.json"))["palettes"]["personal"]):
+def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict = json.load(open("config.json"))["palettes"]["personal"]):
 	col_info = {}
 	for col in gradient_cols:
 		col_info[col] = {}
@@ -860,8 +860,8 @@ def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict 
 	html += '</table>'
 	return html
 
-df = pd.read_csv("C:/Users/JoshAppleton/Downloads/goodreads_library_export.csv", index_col='Book Id')
+df = pd.read_csv("C:/Users/JoshAppleton/Downloads/e94ea63c3c7406f185646203379198355e30d1b3234fe2a01866a1b10a3f702e.csv", index_col='Title')
 print(df.head())
 numeric_cols = list(df.select_dtypes(include='number').columns)
 f = open("C:/Users/JoshAppleton/Downloads/testtable.html", 'w', encoding='utf-8')
-f.write(dataframe_to_html(df, gradient_cols=numeric_cols, colours = json.load(open("pyjap/config.json"))["palettes"]["euler"]))
+f.write(dataframe_to_html(df, gradient_cols=numeric_cols, colours = json.load(open("config.json"))["palettes"]["euler"]))
