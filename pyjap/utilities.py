@@ -1,5 +1,7 @@
-import logger
 import logging
+import pyjap.logger
+
+import datetime
 
 def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search: bool = True):
     if case_insensitive_search:
@@ -14,6 +16,15 @@ def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search
     prefix_loc += len(prefix)
     suffix_loc = search_string.find(suffix, prefix_loc)
     return string[prefix_loc:suffix_loc]
+
+def validate_date(datestring: str, format: str = '%Y-%m-%d'):
+    try:
+        date = datetime.datetime.strptime(datestring, format)
+    except:
+        logging.info(f'String "{datestring}" is not in the format "{format}".')
+        return None
+    else:
+        return date
 
 def rgb_to_hex(rgb: tuple):
     hexcode = "#"

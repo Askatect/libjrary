@@ -118,6 +118,14 @@ class SQLHandler:
             logging.info(f"Successfully connected to {str(self)}.")
         return
     
+    def rollback(self):
+        self.conn.rollback()
+        return
+    
+    def commit(self):
+        self.conn.commit()
+        return
+
     def close_connection(self, commit: bool = True):
         """
         Closes the open connection.
@@ -129,7 +137,7 @@ class SQLHandler:
             logging.warning(f"No open connection.")
             return
         if commit:
-            self.conn.commit()
+            self.commit()
         self.cursor.close()
         self.conn.close()
         self.connected = False
@@ -151,7 +159,7 @@ class SQLHandler:
             return None
         return pd.read_sql_query(query, con=self.conn)
     
-    def execute_query(self, query: str):
+    def execute_query(self, query: str, values: tuple = None):
         """
         Executes a SQL query.
 
@@ -162,7 +170,11 @@ class SQLHandler:
             logging.warning("No open connection.")
             return
         logging.info(f"Running script against {str(self)}.")
-        self.conn.execute(query)
+        if values is None:
+            self.cursor.execute(query)
+        else:
+            self.cursor.execute(query, (values))
+        return
 
     def insert(
         self, 
@@ -172,7 +184,8 @@ class SQLHandler:
         values: list[list|tuple] = None,
         df: pd.DataFrame = None,
         fast_execute: bool = True,
-        auto_create_table: bool = True
+        auto_create_table: bool = True,
+        replace_table: bool = False
     ):
         """
         Inserts data into the specified table.
@@ -189,18 +202,21 @@ class SQLHandler:
         if not self.connected:
             logging.warning("No open connection.")
             return
+        
         if df is None and values is None:
             logging.warning("No values given to insert.")
-            return        
-        if df is not None:
-            cols = df.columns.to_list()
-            values = df.values.tolist()        
-        if len(set([len(vals) for vals in values])) != 1:
-            logging.error("Value vectors must all be the same size.")
             return
+        elif df is not None:
+            cols = df.columns.to_list()
+            values = df.values.tolist() 
+        elif len(set([len(vals) for vals in values])) != 1:
+            logging.error("Value vectors must all be the same size.")
+            return               
+        
         if auto_create_table:
-            self.create_table(table, cols, schema = schema, replace = False)
+            self.create_table(table, cols, schema = schema, replace = replace_table)
         object_name = self._schema_table_to_object_name(schema, table)
+
         try:
             logging.info(f"Preparing for insert into {object_name} at {str(self)}.")
             self.cursor.fast_executemany = fast_execute
