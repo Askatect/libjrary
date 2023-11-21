@@ -1,6 +1,7 @@
 ﻿# $location = Get-Location
 # $location = ($location -split "\\")[0..2] -join "\"
 # $location = (Get-ChildItem *Reference* -Path $location -Recurse -Directory)[0].FullName
+Write-Output ("Run Time: $((Get-Date).ToString())")
 $location = $PSScriptRoot
 Set-Location $location
 Write-Output ("Copying from: $location.")

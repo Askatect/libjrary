@@ -11,19 +11,23 @@ import __main__
 # 10 - DEBUG
 #  0 - NOTSET
 
-if 'now' not in globals():
-    now = datetime.now()
+class Logger:
+    def __init__(self, now: datetime = datetime.now(), location: str = 'logs'):
+        prefix = __main__.__file__.split('.')[0].split("\\")[-1]
+        self.file = f'{location}/{prefix}-log_{now.strftime("%Y%m%d%H%M%S%f")[:-3]}.txt'
+        os.makedirs(os.path.dirname(self.file), exist_ok = True)
 
-prefix = __main__.__file__.split('.')[0].split("\\")[-1]
-file = f'logs/{prefix}-log_{now.strftime("%Y%m%d%H%M%S%f")[:-3]}.txt'
-os.makedirs(os.path.dirname(file), exist_ok = True)
-
-logging.basicConfig(
-    filename = file,
-    filemode = 'w',
-    format = '{asctime} {levelname} {message}',
-    style = '{',
-    level = 'INFO'
-)
-
-logging.info('Logger configured.')
+        logging.basicConfig(
+            filename = self.file,
+            filemode = 'w',
+            format = '{asctime} {levelname} {message}',
+            style = '{',
+            level = 'INFO'
+        )
+        return
+    
+    def __str__(self):
+        return self.file
+    
+    def log_file_reader(self):
+        return open(self.file, 'r')

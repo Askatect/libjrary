@@ -19,9 +19,9 @@ class AzureBlobHandler:
             return
         elif connection_string is None:
             connection_string = kr.get_password(environment, "blob_connection_string")
-        self.connection_string = connection_string
+        self._connection_string = connection_string
         try:
-            self.storage_client = BlobServiceClient.from_connection_string(connection_string)
+            self._storage_client = BlobServiceClient.from_connection_string(connection_string)
         except Exception as error:
             logging.critical(f"Failed to connect to {str(self)}. " + str(error))
         else:
@@ -29,18 +29,18 @@ class AzureBlobHandler:
         return
     
     def __str__(self):
-        return utl.extract_param(self.connection_string, 'AccountName=', ';')
+        return utl.extract_param(self._connection_string, 'AccountName=', ';')
     
     def get_blobs(self, container: str):
-        with self.storage_client.get_container_client(container) as container_client:
+        with self._storage_client.get_container_client(container) as container_client:
             return container_client.list_blobs()
     
     def get_blob_names(self, container: str):
-        with self.storage_client.get_container_client(container) as container_client:
+        with self._storage_client.get_container_client(container) as container_client:
             return container_client.list_blob_names()
         
     def get_blob_as_bytes(self, container: str, blob: str):
-        blob_client = self.storage_client.get_blob_client(container, blob)
+        blob_client = self._storage_client.get_blob_client(container, blob)
         return blob_client.download_blob().readall()
         
     def get_blob_as_string(self, container: str, blob: str, encoding: str = "utf-8"):
@@ -60,13 +60,13 @@ class AzureBlobHandler:
             target_container = source_container
         if target_blob is None:
             target_blob = source_blob.replace('.', '_copy.')
-        source_blob_client = self.storage_client.get_blob_client(source_container, source_blob)
-        target_blob_client = self.storage_client.get_blob_client(target_container, target_blob)
+        source_blob_client = self._storage_client.get_blob_client(source_container, source_blob)
+        target_blob_client = self._storage_client.get_blob_client(target_container, target_blob)
         target_blob_client.start_copy_from_url(source_blob_client.url)
         return
     
     def delete_blob(self, container: str, blob: str):
-        self.storage_client.get_blob_client(container, blob).delete_blob()
+        self._storage_client.get_blob_client(container, blob).delete_blob()
         return
     
     def rename_blob(

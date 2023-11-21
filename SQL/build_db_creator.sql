@@ -1,3 +1,17 @@
+DECLARE @replace bit = 1,
+	@schemata varchar(max) = NULL,
+	@tables bit = 1,
+	@default_constraints bit = 1,
+	@check_constraints bit = 1,
+	@primary_keys bit = 1,
+	@unique_constraints bit = 1,
+	@foreign_keys bit = 1,
+	@triggers bit = 1,
+	@stored_procedures bit = 1,
+	@scalar_functions bit = 1,
+	@table_valued_functions bit = 1,
+	@views bit = 1
+
 SET NOCOUNT ON
 
 DECLARE @sql nvarchar(max), 
@@ -13,21 +27,22 @@ DECLARE @sql nvarchar(max),
 DECLARE @types table (
 	[type] varchar(4),
 	[description] varchar(64),
-	[order] tinyint
+	[order] tinyint,
+	[include] bit
 )
 INSERT INTO @types
-VALUES ('SC', 'Schemata', 1),
-	('U', 'Tables', 2),
-	('D', 'Default Constraints', 3),
-	('C', 'Check Constraints', 4),
-	('PK', 'Primary Keys', 5),
-	('UQ', 'Unique Constraints', 6),
-	('F', 'Foreign Keys', 7),
-	('TR', 'Triggers', 8),
-	('P', 'Stored Procedures', 9),
-	('FN', 'Scalar Functions', 10),
-	('TF', 'Table-Valued Functions', 11),
-	('V', 'Views', 12)
+VALUES ('SC', 'Schemata', 1, 1),
+	('U', 'Tables', 2, @tables),
+	('D', 'Default Constraints', 3, @default_constraints),
+	('C', 'Check Constraints', 4, @check_constraints),
+	('PK', 'Primary Keys', 5, @primary_keys),
+	('UQ', 'Unique Constraints', 6, @unique_constraints),
+	('F', 'Foreign Keys', 7, @foreign_keys),
+	('TR', 'Triggers', 8, @triggers),
+	('P', 'Stored Procedures', 9, @stored_procedures),
+	('FN', 'Scalar Functions', 10, @scalar_functions),
+	('TF', 'Table-Valued Functions', 11, @table_valued_functions),
+	('V', 'Views', 12, @views)
 
 DECLARE @definitions table (
 	[type] varchar(4),

@@ -1,10 +1,10 @@
 import logging
-import logger
+import pyjap.logger
 
+import keyring as kr
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import keyring as kr
 
 class EmailHandler:
     def __init__(

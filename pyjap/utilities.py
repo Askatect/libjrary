@@ -1,5 +1,6 @@
 import logging
-import pyjap.logger
+from pyjap.logger import Logger
+log = Logger()
 
 import datetime
 
