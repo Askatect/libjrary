@@ -1,6 +1,9 @@
-import logger
 import logging
-import utilities as utilities
+from pyjap.logger import Logger
+log = Logger()
+
+import pyjap.utilities as utilities
+
 import json
 import numpy as np
 import pandas as pd
@@ -813,7 +816,21 @@ def jsonformatterv2(json: str):
 	
 	return json
 
-def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict = json.load(open("config.json"))["palettes"]["personal"]):
+def dataframe_to_html(
+		df: pd.DataFrame, 
+		gradient_cols: list = [], 
+		colours: dict = {
+			'main': '#181848', 
+			'positive': '#1b8c1b', 
+			'null': '#8c8c1b', 
+			'negative': '#8c1b1b', 
+			'black': '#000000', 
+			'grey': '#cfcfcf', 
+			'white': '#ffffff', 
+			'dark_accent': '#541b8c', 
+			'light_accent': '#72abe3'
+		}
+	):
 	col_info = {}
 	for col in gradient_cols:
 		col_info[col] = {}
@@ -860,8 +877,8 @@ def dataframe_to_html(df: pd.DataFrame, gradient_cols: list = [], colours: dict 
 	html += '</table>'
 	return html
 
-df = pd.read_csv("C:/Users/JoshAppleton/Downloads/e94ea63c3c7406f185646203379198355e30d1b3234fe2a01866a1b10a3f702e.csv", index_col='Title')
-print(df.head())
-numeric_cols = list(df.select_dtypes(include='number').columns)
-f = open("C:/Users/JoshAppleton/Downloads/testtable.html", 'w', encoding='utf-8')
-f.write(dataframe_to_html(df, gradient_cols=numeric_cols, colours = json.load(open("config.json"))["palettes"]["euler"]))
+# df = pd.read_csv("C:/Users/JoshAppleton/Downloads/e94ea63c3c7406f185646203379198355e30d1b3234fe2a01866a1b10a3f702e.csv", index_col='Title')
+# print(df.head())
+# numeric_cols = list(df.select_dtypes(include='number').columns)
+# f = open("C:/Users/JoshAppleton/Downloads/testtable.html", 'w', encoding='utf-8')
+# f.write(dataframe_to_html(df, gradient_cols=numeric_cols, colours = json.load(open("config.json"))["palettes"]["euler"]))

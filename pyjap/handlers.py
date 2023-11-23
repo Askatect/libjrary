@@ -152,30 +152,36 @@ class SQLHandler:
         schema = '' if schema is None or schema == '' else '[' + schema + '].'
         return f"{schema}[{table}]"
     
-    def connect_to_mssql(self):
+    def connect_to_mssql(self, auto_commit: bool = False):
         """
         Establishes a connection to the SQL Server.
         """
         if self.connected:
-            logging.warning(f"Connection to {str(self)} already open.")
+            logging.error(f"Connection to {str(self)} already open.")
             return
-        logging.info(f'Attempting to connect to [{self._params["server"]}].[{self._params["database"]}].')
+        logging.info(f'Attempting to connect to [{self._params["server"]}].[{self._params["database"]}]...')
         try:
-            self.conn = pyodbc.connect(self._connection_string, autocommit=False)
+            self.conn = pyodbc.connect(self._connection_string, autocommit = auto_commit)
             self.cursor = self.conn.cursor()
         except pyodbc.InterfaceError as error:
             logging.error(f'Failed to connect to [{self._params["server"]}].[{self._params["database"]}]. {error}. Available drivers: {pyodbc.drivers()}.')
+            raise
         except Exception as error:
             logging.error(f'Failed to connect to [{self._params["server"]}].[{self._params["database"]}]. {error}')
+            raise
         else:
             self.connected = True
             logging.info(f"Successfully connected to {str(self)}.")
-        return
+            return self.cursor
     
     def rollback(self):
         """
         Rolls back the current transaction.
         """
+        if not self.connected:
+            logging.error("No open connection to roll back.")
+            return
+        logging.info(f"Rolling back transaction to {str(self)}.")
         self.conn.rollback()
         return
     
@@ -183,6 +189,10 @@ class SQLHandler:
         """
         Commits the current transaction.
         """
+        if not self.connected:
+            logging.error("No open connection to commit.")
+            return
+        logging.info(f"Committing transaction to {str(self)}.")
         self.conn.commit()
         return
 
@@ -194,10 +204,12 @@ class SQLHandler:
             commit (bool, optional): Flag indicating whether to commit changes before closing. Default is True.
         """
         if not self.connected:
-            logging.warning(f"No open connection.")
+            logging.error("No open connection to close.")
             return
         if commit:
             self.commit()
+        else:
+            self.rollback()
         self.cursor.close()
         self.conn.close()
         self.connected = False
@@ -215,11 +227,16 @@ class SQLHandler:
             pd.DataFrame: A pandas DataFrame containing the query result.
         """
         if not self.connected:
-            logging.warning("No open connection.")
-            return None
-        return pd.read_sql_query(query, con=self.conn)
+            try:
+                self.cursor = self.connect_to_mssql(auto_commit = False)
+            except Exception as error:
+                logging.error(f"Could not connect to {self}. {error}.")
+                return
+        selection = pd.read_sql_query(query, con=self.conn)
+        self.close_connection(commit = False)
+        return selection
     
-    def execute_query(self, query: str, values: tuple = None):
+    def execute_query(self, query: str, values: tuple = None, commit: bool = True) -> None|list[pyodbc.Row]:
         """
         Executes a SQL query.
 
@@ -228,14 +245,22 @@ class SQLHandler:
             values (tuple, optional): The parameter values for the query.
         """
         if not self.connected:
-            logging.warning("No open connection.")
-            return
-        logging.info(f"Running script against {str(self)}:\n{query}\n")
+            try:
+                self.cursor = self.connect_to_mssql(auto_commit = commit)
+            except Exception as error:
+                logging.error(f"Could not connect to {self}. {error}.")
+                return
+        logging.info(f"Running script against {str(self)}:\n{query}")
         if values is None:
             self.cursor.execute(query)
         else:
             self.cursor.execute(query, (values))
-        return
+        try:
+            selection = self.cursor.fetchall()
+        except:
+            selection = None
+        self.close_connection(commit)
+        return selection
 
     def insert(
         self, 
@@ -246,7 +271,8 @@ class SQLHandler:
         df: pd.DataFrame = None,
         fast_execute: bool = True,
         auto_create_table: bool = True,
-        replace_table: bool = False
+        replace_table: bool = False,
+        commit: bool = True
     ):
         """
         Inserts data into the specified table.
@@ -261,33 +287,46 @@ class SQLHandler:
             auto_create_table (bool, optional): Flag indicating whether to auto-create the table if not exists. Default is True.
             replace_table (bool, optional): Flag indicating whether to replace the existing table. Default is False.
         """
-        if not self.connected:
-            logging.warning("No open connection.")
-            return
-        
         if df is None and values is None:
-            logging.warning("No values given to insert.")
+            logging.error("No values given to insert.")
             return
         elif df is not None:
             cols = df.columns.to_list()
             values = df.values.tolist() 
         elif len(set([len(vals) for vals in values])) != 1:
             logging.error("Value vectors must all be the same size.")
-            return               
+            return
+        
+        if not self.connected:
+            try:
+                self.connect_to_mssql(auto_commit = commit)
+            except Exception as error:
+                logging.error(f"Could not connect to {self}. {error}.")
+                return None
         
         if auto_create_table:
-            self.create_table(table, cols, schema = schema, replace = replace_table)
+            self.create_table(table, cols, schema = schema, replace = replace_table, commit = commit)
         object_name = self._schema_table_to_object_name(schema, table)
 
         try:
-            logging.info(f"Preparing for insert into {object_name} at {str(self)}.")
+            logging.info(f"Inserting into {object_name} at {str(self)}...")
+            self.connect_to_mssql(commit)
             self.cursor.fast_executemany = fast_execute
             cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(cols) + '])' if len(cols) > 0 else ''} VALUES ({'?' + (len(values[0]) - 1)*', ?'})"
-            self.cursor.executemany(cmd, values)
-        except:
-            logging.warning("Insert failed.")
+            try:
+                self.cursor.executemany(cmd, values)
+            except Exception as error:
+                if fast_execute:
+                    logging.error(f"Insert failed. {error}.\nAttempting insert without fast_executemany...")
+                    self.cursor.fast_executemany = False
+                    self.cursor.executemany(cmd, values)
+        except Exception as error:
+            self.close_connection(commit = False)
+            logging.error(f"Insert failed. Error: {error}.")
         else:
             logging.info(f"Insert complete!")
+
+        self.close_connection(commit)
         return
     
     def create_table(
@@ -296,7 +335,8 @@ class SQLHandler:
         columns: list[str] = [], 
         datatypes: list[str] = [], 
         schema: str = None, 
-        replace: bool = False
+        replace: bool = False,
+        commit: bool = True
     ):
         """
         Creates a new table in the database.
@@ -308,13 +348,10 @@ class SQLHandler:
             schema (str, optional): The schema of the table.
             replace (bool, optional): Flag indicating whether to replace the existing table. Default is False.
         """
-        if not self.connected:
-            logging.warning("No open connection.")
-            return
         object_name = self._schema_table_to_object_name(schema, table)
         if not replace:
-            self.cursor.execute(f"SELECT 1 FROM sys.tables WHERE [object_id] = OBJECT_ID('{object_name}')")
-            if self.cursor.fetchone() is not None:
+            result = self.execute_query(f"SELECT 1 FROM sys.tables WHERE [object_id] = OBJECT_ID('{object_name}')")[0][0]
+            if result is not None:
                 logging.info(f"The table {object_name} already exists.")
                 return
             cmd = ""
@@ -325,13 +362,15 @@ class SQLHandler:
         if datatype_count >= col_count:
             datatypes = datatypes[:col_count]
         else:
-            datatypes.extend(['nvarchar(max)']*(col_count - datatype_count))
+            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) FROM sys.types WHERE [system_type_id] = 231")[0][0]
+            datatypes.extend([f'nvarchar({max_length})']*(col_count - datatype_count))
         column_definition = ',\n\t'.join(f"[{col}] {datatype}" for col, datatype in zip(columns, datatypes))
         cmd += f"CREATE TABLE {object_name} (\n\t{column_definition})"
         try:
-            self.cursor.execute(cmd)
-        except:
-            logging.warning(f"Failed to create table {object_name} at {str(self)}.")
+            self.execute_query(cmd, commit = commit)
+        except Exception as error:
+            self.close_connection(commit = False)
+            logging.error(f"Failed to create table {object_name} at {str(self)}. Error: {error}.")
         else:
             logging.info(f"Successfully created table {object_name} at {str(self)}.")
         return
@@ -382,6 +421,7 @@ class AzureBlobHandler:
         elif connection_string is None:
             connection_string = kr.get_password(environment, "blob_connection_string")
         self._connection_string = connection_string
+        logging.info(f"Connecting to {str(self)}...")
         try:
             self._storage_client = BlobServiceClient.from_connection_string(connection_string)
         except Exception as error:
@@ -453,18 +493,19 @@ class AzureBlobHandler:
         """
         return self.get_blob_as_bytes(container, blob).decode(encoding)
     
-    def get_blob_csv_as_dataframe(self, container: str, blob: str):
+    def get_blob_csv_as_dataframe(self, container: str, blob: str, encoding: str = "utf-8"):
         """
         Retrieves the content of a CSV blob as a DataFrame.
 
         Args:
             container (str): The name of the container.
             blob (str): The name of the CSV blob.
+            encoding (str, optional): The encoding to use. Default is 'utf-8'.
 
         Returns:
             pd.DataFrame: A pandas DataFrame containing the CSV data.
         """
-        return pd.read_csv(StringIO(self.get_blob_as_string(container, blob)))
+        return pd.read_csv(StringIO(self.get_blob_as_string(container, blob, encoding)))
     
     def copy_blob(
         self, 
@@ -521,7 +562,9 @@ class AzureBlobHandler:
         return
     
 import smtplib
+from os.path import basename
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 
 class EmailHandler:
@@ -569,32 +612,37 @@ class EmailHandler:
             smtp (str, optional): The SMTP server address.
             port (int, optional): The SMTP server port.
         """
-        self.params = locals()
-        self.params.pop('self')
-        self.params.pop('environment')
+        self.params = {
+            'email': email,
+            'password': password,
+            'smtp': smtp,
+            'port': port
+        }
         if environment is not None:
             for param in self.params.keys():
                 value = kr.get_password(environment, param)
                 if value is not None:
                     self.params[param] = value
         self.connected = False
-        self.connect_to_smtp()
         return
+    
+    def __str__(self):
+        return self.params['email']
     
     def connect_to_smtp(self):
         """
         Connects to the SMTP server.
         """
         if self.connected:
-            logging.warning("Connection already open.")
+            logging.error("Connection already open.")
             return
-        logging.info(f"Attempting to connect to {self.params['email']} on {self.params['smtp']}.")
+        logging.info(f"Attempting to connect to {self}.")
         try:
             self.connection = smtplib.SMTP(self.params['smtp'], self.params['port'])
             self.connection.starttls()
             self.connection.login(user = self.params['email'], password = self.params['password'])
-        except:
-            logging.error(f"Failed to connect to {self.params['smtp']}.")
+        except Exception as error:
+            logging.error(f"Failed to connect to {self.params['smtp']}. {error}.")
         else:
             self.connected = True
             logging.info(f"Successfully connected to {self.params['smtp']}.")
@@ -606,7 +654,8 @@ class EmailHandler:
                    bcc: list|str = [], 
                    subject: str = "",
                    body_html: str = None,
-                   body_alt_text: str = None
+                   body_alt_text: str = None,
+                   attachments: list[str]|str = []
     ):
         """
         Sends an email.
@@ -618,31 +667,55 @@ class EmailHandler:
             subject (str): The subject of the email.
             body_html (str, optional): The HTML body of the email.
             body_alt_text (str, optional): The alternative plain text body of the email.
+            attachments: (list[str]|str): File address(es) to add as email attachments.
         """
         if not self.connected:
-            logging.warning("No open connection.")
-            return
+            try:
+                self.connect_to_smtp()
+            except:
+                logging.error(f"Could not connect to {self}. {error}.")
+                return None
+            
         logging.info(f"Attempting to send email from {self.params['email']}...")
+        message = MIMEMultipart()
+        message["From"] = self.params['email']
+        message["Subject"] = subject
+        
         if type(to) is str:
             to = [to]
+        message["To"] = ",".join(to)
+        
         if type(cc) is str:
             cc = [cc]
+        message["Cc"] = ",".join(cc)
+        
         if type(bcc) is str:
             bcc = [bcc]
-        message = MIMEMultipart("alternative")
-        message["From"] = self.params['email']
-        message["To"] = ",".join(to)
-        message["Cc"] = ",".join(cc)
-        message["Subject"] = subject
+        
         message.attach(MIMEText(body_alt_text, "plain"))
+        
+        if type(attachments) is str:
+            attachments = [attachments]
+        for file in attachments:
+            try:
+                with open(file, 'rb') as file_reader:
+                    part = MIMEApplication(file_reader.read(), name = basename(file))
+                part['Content-Disposition'] = f'attachment; filename={basename(file)}'
+                message.attach(part)
+            except Exception as error:
+                logging.error(f'Could not attach file "{file}".')
+                return None
+        
         if body_html is not None:
             message.attach(MIMEText(body_html, "html"))
         try:
+            logging.info(f"Sending email from {self}...")
             self.connection.sendmail(self.params['email'], to + cc + bcc, message.as_string())
-        except:
-            logging.error("Failed to send email.")
+        except Exception as error:
+            logging.error(f"Failed to send email. {error}.")
         else:
-            logging.info("Email sent successfully.")
+            logging.info("Email sent successfully!")
+        self.close_connection()
         return
             
     def close_connection(self):
@@ -650,7 +723,7 @@ class EmailHandler:
         Closes the SMTP connection.
         """
         if not self.connected:
-            logging.warning("No open connection.")
+            logging.error("No open connection.")
             return
         try:
             self.connection.quit()
@@ -658,5 +731,5 @@ class EmailHandler:
             logging.error("Failed to close connection.")
         else:
             self.connected = False
-            logging.info(f"Closed connection to {self.params['email']} on {self.params['smtp']}.")
+            logging.info(f"Closed connection to {self}.")
         return

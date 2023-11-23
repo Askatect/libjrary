@@ -2,9 +2,14 @@ CREATE OR ALTER PROCEDURE [dbo].[select_to_html] (
     @query varchar(max),
     @order_by varchar(max) = NULL,
 	@out varchar(max) = '' OUTPUT,
-	@sum bit = 0
+	@sum bit = 0,
+    @print bit = 0,
+    @display bit = 0
 )
 AS
+IF @print = 0
+    SET NOCOUNT ON
+
 BEGIN
     DECLARE @main char(7) = '#181848',
         @black char(7) = '#000000',
@@ -16,6 +21,9 @@ BEGIN
         @null char(7) = '#8c8c1b',
         @positive char(7) = '#1b8c1b'
 
+    DROP TABLE IF EXISTS [dbo].[temp];
+    CREATE TABLE [dbo].[temp]([R] int) -- Beat the intellisense.
+
     DECLARE @cmd nvarchar(max) = CONCAT('
         DROP TABLE IF EXISTS [dbo].[temp];
         
@@ -23,7 +31,8 @@ BEGIN
         INTO [dbo].[temp] 
         FROM (', @query, ') AS [T]
     ')
-	PRINT(@cmd)
+    IF @print = 1
+	    PRINT(@cmd)
     EXEC(@cmd)
 
     DROP TABLE IF EXISTS #columns;
@@ -50,7 +59,8 @@ BEGIN
         FROM (SELECT (ROW_NUMBER() OVER(ORDER BY ', ISNULL(@order_by, (SELECT TOP(1) '[' + [col] + ']' FROM #columns)), ') - 1) AS [R], [ID] FROM [dbo].[temp]) AS [T]
         WHERE [dbo].[temp].[ID] = [T].[ID]
     ')
-	PRINT(@cmd)
+    IF @print = 1
+	    PRINT(@cmd)
     EXEC(@cmd)
 
     ALTER TABLE [dbo].[temp]
@@ -86,7 +96,8 @@ BEGIN
                     [max] = CONVERT(float, (SELECT MAX([', @col, ']) FROM [dbo].[temp]))
                 WHERE [col] = ''', @col, '''
             ')
-			PRINT(@cmd)
+            IF @print = 1
+			    PRINT(@cmd)
             EXEC(@cmd)
 			IF @sum = 1
 			BEGIN
@@ -95,7 +106,8 @@ BEGIN
 					SET [sum] = CONVERT(float, (SELECT SUM([', @col, ']) FROM [dbo].[temp]))
 					WHERE [col] = ''', @col, '''
 				')
-				PRINT(@cmd)
+                IF @print = 1
+				    PRINT(@cmd)
 				EXEC(@cmd)
 			END
         END
@@ -131,7 +143,8 @@ BEGIN
                 FROM [dbo].[temp]
                 WHERE [R] = ', @R, '
             ')
-			PRINT(@cmd)
+            IF @print = 1
+			    PRINT(@cmd)
             EXEC sp_executesql @cmd, N'@value_char varchar(max) OUTPUT, @value_float float OUTPUT', @value_char OUTPUT, @value_float OUTPUT
 
             IF @c = 1
@@ -191,7 +204,8 @@ BEGIN
 					FROM #columns
 					WHERE [col] = ''', @col, '''
 				')
-				PRINT(@cmd)
+                IF @print = 1
+				    PRINT(@cmd)
 				EXEC sp_executesql @cmd, N'@value_char varchar(max) OUTPUT, @value_float float OUTPUT', @value_char OUTPUT, @value_float OUTPUT
 
 				IF @min < 0
@@ -227,6 +241,11 @@ BEGIN
     DROP TABLE IF EXISTS #columns
 
 	SET @out = @html
+
+    IF @print = 1
+        PRINT(@out)
+    IF @display = 1
+        SELECT @out AS [html]
 
 	RETURN;
 END
