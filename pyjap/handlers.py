@@ -21,8 +21,6 @@ Dependencies:
 """
 
 import logging
-from pyjap.logger import Logger
-log = Logger()
 
 import pyjap.utilities as utl
 
@@ -250,7 +248,7 @@ class SQLHandler:
             except Exception as error:
                 logging.error(f"Could not connect to {self}. {error}.")
                 return
-        logging.info(f"Running script against {str(self)}:\n{query}")
+        logging.info(f"Running script against {str(self)}:\n{query}\nValues: {values}.")
         if values is None:
             self.cursor.execute(query)
         else:
@@ -669,6 +667,13 @@ class EmailHandler:
             body_alt_text (str, optional): The alternative plain text body of the email.
             attachments: (list[str]|str): File address(es) to add as email attachments.
         """
+        if type(to) is str:
+            to = [to]
+        if type(cc) is str:
+            cc = [cc]        
+        if type(bcc) is str:
+            bcc = [bcc]
+
         if not self.connected:
             try:
                 self.connect_to_smtp()
@@ -676,41 +681,40 @@ class EmailHandler:
                 logging.error(f"Could not connect to {self}. {error}.")
                 return None
             
-        logging.info(f"Attempting to send email from {self.params['email']}...")
-        message = MIMEMultipart()
-        message["From"] = self.params['email']
-        message["Subject"] = subject
-        
-        if type(to) is str:
-            to = [to]
-        message["To"] = ",".join(to)
-        
-        if type(cc) is str:
-            cc = [cc]
-        message["Cc"] = ",".join(cc)
-        
-        if type(bcc) is str:
-            bcc = [bcc]
-        
-        message.attach(MIMEText(body_alt_text, "plain"))
+        logging.info(f"Attempting to build email from {self.params['email']}...")
+        message_alt = MIMEMultipart('alternative')
+                
+        message_alt.attach(MIMEText(body_alt_text, "plain"))
+        if body_html is not None:
+            message_alt.attach(MIMEText(body_html, "html"))
         
         if type(attachments) is str:
             attachments = [attachments]
-        for file in attachments:
-            try:
-                with open(file, 'rb') as file_reader:
-                    part = MIMEApplication(file_reader.read(), name = basename(file))
-                part['Content-Disposition'] = f'attachment; filename={basename(file)}'
-                message.attach(part)
-            except Exception as error:
-                logging.error(f'Could not attach file "{file}".')
-                return None
+        if len(attachments) > 0:
+            message_mix = MIMEMultipart('mixed')
+            message_mix.attach(message_alt)
+            for file in attachments:
+                try:
+                    with open(file, 'rb') as file_reader:
+                        part = MIMEApplication(file_reader.read(), name = basename(file))
+                    part['Content-Disposition'] = f'attachment; filename={basename(file)}'
+                    message_mix.attach(part)
+                except Exception as error:
+                    logging.error(f'Could not attach file "{file}". {error}.')
+                    return
+        else:
+            message_mix = message_alt
         
-        if body_html is not None:
-            message.attach(MIMEText(body_html, "html"))
+        message_mix["Subject"] = subject
+        message_mix["From"] = self.params["email"]
+        message_mix["To"] = ",".join(to)
+        message_mix["Cc"] = ",".join(cc)
+
+        logging.info("Email built!")
+
         try:
             logging.info(f"Sending email from {self}...")
-            self.connection.sendmail(self.params['email'], to + cc + bcc, message.as_string())
+            self.connection.sendmail(message_mix["From"], to + cc + bcc, message_mix.as_string())
         except Exception as error:
             logging.error(f"Failed to send email. {error}.")
         else:

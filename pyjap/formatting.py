@@ -1,6 +1,4 @@
 import logging
-from pyjap.logger import Logger
-log = Logger()
 
 import pyjap.utilities as utilities
 

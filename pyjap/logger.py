@@ -24,6 +24,8 @@ class Logger:
             style = '{',
             level = 'INFO'
         )
+
+        logging.info("Logger configured!")
         return
     
     def __str__(self):
