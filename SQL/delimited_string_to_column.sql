@@ -1,4 +1,4 @@
-CREATE OR ALTER FUNCTION [dbo].[string_split] (
+CREATE OR ALTER FUNCTION [jra].[string_split] (
     @string nvarchar(max),
     @splitter nvarchar(max) = ','
 )

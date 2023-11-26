@@ -1,18 +1,18 @@
-CREATE OR ALTER PROCEDURE [dbo].[transpose_table] (@query varchar(max),
-	@output varchar(max) = '[dbo].[output]'
+CREATE OR ALTER PROCEDURE [jra].[transpose_table] (@query varchar(max),
+	@output varchar(max) = '[jra].[output]'
 )
 AS
 BEGIN
 	SET NOCOUNT ON
 
-	DROP TABLE IF EXISTS [dbo].[temp]
+	DROP TABLE IF EXISTS [jra].[temp]
 	DROP TABLE IF EXISTS #columns
 	DROP TABLE IF EXISTS ##insert
 
 	DECLARE @cmd varchar(max)
 	SET @cmd = CONCAT('
 		SELECT *
-		INTO [dbo].[temp]
+		INTO [jra].[temp]
 		FROM (', @query, ') AS [T]
 	')
 	--PRINT(@cmd)
@@ -23,7 +23,7 @@ BEGIN
 	SELECT [column_id] AS [c],
 		[name] AS [col]
 	FROM sys.columns
-	WHERE [object_id] = OBJECT_ID('[dbo].[temp]')
+	WHERE [object_id] = OBJECT_ID('[jra].[temp]')
 	ORDER BY [column_id]
 
 	OPEN cols_cursor
@@ -34,7 +34,7 @@ BEGIN
 	SET @cmd = CONCAT('
 		SELECT ', @c, ' AS [c], CONCAT(''(['', STRING_AGG(ISNULL(CONVERT(varchar, [', @col, '], 21), ''NULL''), ''] varchar(max), [''), ''] varchar(max))'') AS [values]
 		INTO ##insert
-		FROM [dbo].[temp]
+		FROM [jra].[temp]
 	')
 
 	WHILE @@FETCH_STATUS = 0
@@ -45,7 +45,7 @@ BEGIN
 		SET @cmd += CONCAT('
 			UNION
 			SELECT ', @c, ', CONCAT(''('''''', STRING_AGG(ISNULL(CONVERT(varchar, [', @col, '], 21), ''NULL''), '''''', ''''''), '''''')'')
-			FROM [dbo].[temp]
+			FROM [jra].[temp]
 		')
 	END
 	--PRINT(@cmd)
@@ -69,7 +69,7 @@ BEGIN
 	CLOSE cols_cursor
 	DEALLOCATE cols_cursor
 
-	DROP TABLE IF EXISTS [dbo].[temp]
+	DROP TABLE IF EXISTS [jra].[temp]
 	DROP TABLE IF EXISTS #columns
 	DROP TABLE IF EXISTS ##insert
 END

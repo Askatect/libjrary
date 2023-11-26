@@ -1,4 +1,4 @@
-CREATE OR ALTER FUNCTION [dbo].[hexcode_to_rgb] (@hexcode char(7))
+CREATE OR ALTER FUNCTION [jra].[hexcode_to_rgb] (@hexcode char(7))
 RETURNS @Output TABLE ([rgb] char(1), [value] int)
 AS
 BEGIN

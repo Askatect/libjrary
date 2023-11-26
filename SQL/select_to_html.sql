@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE [dbo].[select_to_html] (
+CREATE OR ALTER PROCEDURE [jra].[select_to_html] (
     @query varchar(max),
     @order_by varchar(max) = NULL,
 	@out varchar(max) = '' OUTPUT,
@@ -21,14 +21,14 @@ BEGIN
         @null char(7) = '#8c8c1b',
         @positive char(7) = '#1b8c1b'
 
-    DROP TABLE IF EXISTS [dbo].[temp];
-    CREATE TABLE [dbo].[temp]([R] int) -- Beat the intellisense.
+    DROP TABLE IF EXISTS [jra].[temp];
+    CREATE TABLE [jra].[temp]([R] int) -- Beat the intellisense.
 
     DECLARE @cmd nvarchar(max) = CONCAT('
-        DROP TABLE IF EXISTS [dbo].[temp];
+        DROP TABLE IF EXISTS [jra].[temp];
         
         SELECT * 
-        INTO [dbo].[temp] 
+        INTO [jra].[temp] 
         FROM (', @query, ') AS [T]
     ')
     IF @print = 1
@@ -47,23 +47,23 @@ BEGIN
 		CONVERT(float, 0.0) AS [sum]
     INTO #columns
     FROM [sys].[columns] AS [c]
-    WHERE [c].[object_id] = OBJECT_ID('[dbo].[temp]')
+    WHERE [c].[object_id] = OBJECT_ID('[jra].[temp]')
     ORDER BY [c].[column_id]
 
-    ALTER TABLE [dbo].[temp]
+    ALTER TABLE [jra].[temp]
     ADD [ID] int IDENTITY(0, 1) NOT NULL, [R] int;
 
     SET @cmd = CONCAT('
-        UPDATE [dbo].[temp]
+        UPDATE [jra].[temp]
         SET [R] = [T].[R]
-        FROM (SELECT (ROW_NUMBER() OVER(ORDER BY ', ISNULL(@order_by, (SELECT TOP(1) '[' + [col] + ']' FROM #columns)), ') - 1) AS [R], [ID] FROM [dbo].[temp]) AS [T]
-        WHERE [dbo].[temp].[ID] = [T].[ID]
+        FROM (SELECT (ROW_NUMBER() OVER(ORDER BY ', ISNULL(@order_by, (SELECT TOP(1) '[' + [col] + ']' FROM #columns)), ') - 1) AS [R], [ID] FROM [jra].[temp]) AS [T]
+        WHERE [jra].[temp].[ID] = [T].[ID]
     ')
     IF @print = 1
 	    PRINT(@cmd)
     EXEC(@cmd)
 
-    ALTER TABLE [dbo].[temp]
+    ALTER TABLE [jra].[temp]
     DROP COLUMN [ID];
 
     DECLARE @c int,
@@ -92,8 +92,8 @@ BEGIN
         BEGIN
             SET @cmd = CONCAT('
                 UPDATE #columns
-                SET [min] = CONVERT(float, (SELECT MIN([', @col, ']) FROM [dbo].[temp])),
-                    [max] = CONVERT(float, (SELECT MAX([', @col, ']) FROM [dbo].[temp]))
+                SET [min] = CONVERT(float, (SELECT MIN([', @col, ']) FROM [jra].[temp])),
+                    [max] = CONVERT(float, (SELECT MAX([', @col, ']) FROM [jra].[temp]))
                 WHERE [col] = ''', @col, '''
             ')
             IF @print = 1
@@ -103,7 +103,7 @@ BEGIN
 			BEGIN
 				SET @cmd = CONCAT('
 					UPDATE #columns
-					SET [sum] = CONVERT(float, (SELECT SUM([', @col, ']) FROM [dbo].[temp]))
+					SET [sum] = CONVERT(float, (SELECT SUM([', @col, ']) FROM [jra].[temp]))
 					WHERE [col] = ''', @col, '''
 				')
                 IF @print = 1
@@ -128,7 +128,7 @@ BEGIN
         FROM #columns
     )
 
-	WHILE @R <= (SELECT MAX([R]) FROM [dbo].[temp])
+	WHILE @R <= (SELECT MAX([R]) FROM [jra].[temp])
     BEGIN
 	    FETCH FIRST FROM row_cursor
         INTO @c, @col, @numeric, @min, @max
@@ -140,7 +140,7 @@ BEGIN
             SET @cmd = CONCAT('
                 SELECT @value_char = REPLACE(CONVERT(varchar(max), [', @col, '], 21), CHAR(10), ''''),
                     @value_float = ', IIF(@numeric <> 0, CONCAT('CONVERT(float, [', @col, '])'), 'NULL'), '
-                FROM [dbo].[temp]
+                FROM [jra].[temp]
                 WHERE [R] = ', @R, '
             ')
             IF @print = 1
@@ -159,15 +159,15 @@ BEGIN
                 IF @numeric <> 0 AND @min < 0
                 BEGIN
                     IF @value_float < 0
-                        SET @background = [dbo].[gradient_hex](@value_float, @min, 0, @negative, @null)
+                        SET @background = [jra].[gradient_hex](@value_float, @min, 0, @negative, @null)
                     ELSE
-                        SET @background = [dbo].[gradient_hex](@value_float, @max, 0, @positive, @null)
+                        SET @background = [jra].[gradient_hex](@value_float, @max, 0, @positive, @null)
                     SET @fontcolour = @white
                 END
                 ELSE
                 BEGIN
                     IF @numeric <> 0
-                        SET @background = [dbo].[gradient_hex](@value_float, @min, @max, @white, @light_accent)
+                        SET @background = [jra].[gradient_hex](@value_float, @min, @max, @white, @light_accent)
                     ELSE IF @R % 2 = 0
                         SET @background = @white
                     ELSE
@@ -237,7 +237,7 @@ BEGIN
     CLOSE row_cursor
     DEALLOCATE row_cursor
 
-    DROP TABLE IF EXISTS [dbo].[temp]
+    DROP TABLE IF EXISTS [jra].[temp]
     DROP TABLE IF EXISTS #columns
 
 	SET @out = @html

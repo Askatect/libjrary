@@ -1,4 +1,4 @@
-CREATE OR ALTER FUNCTION dbo.age(
+CREATE OR ALTER FUNCTION [jra].[age](
 	@Start date, 
 	@End date = NULL
 )

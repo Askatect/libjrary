@@ -1,4 +1,4 @@
-CREATE OR ALTER FUNCTION dbo.jsonformatter(@json nvarchar(max))
+CREATE OR ALTER FUNCTION [jra].[jsonformatter](@json nvarchar(max))
 RETURNS nvarchar(max)
 AS
 BEGIN

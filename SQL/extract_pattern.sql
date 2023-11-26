@@ -1,4 +1,4 @@
-CREATE OR ALTER FUNCTION [utl].[extract_pattern] (
+CREATE OR ALTER FUNCTION [jra].[extract_pattern] (
     @string nvarchar(max),
     @pattern nvarchar(max) = '[ABCDEFGHIJKLMNOPQRSTUVWXYZ,0-9]'
 )

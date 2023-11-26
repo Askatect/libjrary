@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE [dbo].[print] (@string nvarchar(max))
+CREATE OR ALTER PROCEDURE [jra].[print] (@string nvarchar(max))
 AS
 BEGIN
 	DECLARE @c int = 1

@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE [dbo].[delimited_string_to_table] (
+CREATE OR ALTER PROCEDURE [jra].[delimited_string_to_table] (
     @string nvarchar(max),
     @separator nvarchar(max) = ',',
     @row_separator nvarchar(max) = ';',

@@ -1,4 +1,4 @@
-CREATE PROCEDURE [dbo].[timer] (
+CREATE PROCEDURE [jra].[timer] (
 	@Start datetime,
 	@Process varchar(128) = 'Process',
 	@End datetime = NULL
