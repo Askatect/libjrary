@@ -8,5 +8,6 @@ Write-Output ("Copying from: $location.")
 $location = ($location -split "\\")[0..2] -join "\"
 $location += "\AppData\Local\Programs\Python\Python311\Lib\site-packages"
 Write-Output ("Copying to: $location.")
-copy-item -Path "pyjap" -Destination $location -Recurse -Force
+Remove-Item -Path ($location + "/pyjap") -Recurse
+Copy-Item -Path "pyjap" -Destination $location -Recurse -Force
 Write-Output ("Run End: $((Get-Date).ToString())")

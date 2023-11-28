@@ -721,38 +721,6 @@ def sqlformatterv5(query):
 
 	return query
 
-# def jsonformatterv1(json):
-# 	json = reduce(json)
-# 	json = newline_json(json)
-# 	while '\n\n' in json:
-# 		json = json.replace('\n\n', '\n')
-
-# 	logging.info('Inital cleaning of JSON done, now formatting.')
-	
-# 	level = 0
-# 	jsonlines = json.split('\n')
-# 	json = ''
-# 	for line in jsonlines:
-# 		if len(line) > 1:
-# 			endchar = line[-1]
-# 		else:
-# 			endchar = line
-		
-# 		if line == ',':
-# 			json += line
-# 		elif endchar in ['{', '[']:
-# 			json += '\n' + level*'\t' + line
-# 			level += 1
-# 		elif endchar in ['}', ']']:
-# 			level -= 1
-# 			json += '\n' + level*'\t' + line
-# 		else:
-# 			json += '\n' + level*'\t' + line
-
-# 	logging.info('Cleaning and returning formatted JSON.')
-
-# 	return clean(json)
-
 def jsonformatterv2(json: str):
 	logging.info('Cleaning JSON and identifying terms...')
 	json = json.replace('\n', '')

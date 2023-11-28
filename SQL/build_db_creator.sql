@@ -12,11 +12,59 @@ CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
 	@stored_procedures bit = 1,
 	@scalar_functions bit = 1,
 	@table_valued_functions bit = 1,
-	@views bit = 1
+	@views bit = 1,
+	@indexes bit = 1
 )
 AS
 
 SET NOCOUNT ON
+
+DECLARE @cmd nvarchar(max), 
+	@sql nvarchar(max), 
+	@R int, 
+	@O int,
+	@type varchar(4),
+	@description varchar(64), 
+	@schema varchar(128),
+	@table varchar(128),
+	@name varchar(128), 
+	@definition nvarchar(max)
+
+DECLARE @types table (
+	[type] varchar(4),
+	[description] varchar(64),
+	[order] tinyint,
+	[include] bit
+)
+INSERT INTO @types
+VALUES ('SC', 'Schemata', 1, 1),
+	('U', 'Tables', 2, @tables),
+	('DT', 'Data', 3, @data),
+	('D', 'Default Constraints', 4, @default_constraints),
+	('C', 'Check Constraints', 5, @check_constraints),
+	('PK', 'Primary Keys', 6, @primary_keys),
+	('UQ', 'Unique Constraints', 7, @unique_constraints),
+	('F', 'Foreign Keys', 8, @foreign_keys),
+	('TR', 'Triggers', 9, @triggers),
+	('P', 'Stored Procedures', 10, @stored_procedures),
+	('FN', 'Scalar Functions', 11, @scalar_functions),
+	('TF', 'Table-Valued Functions', 12, @table_valued_functions),
+	('V', 'Views', 13, @views),
+	('I', 'Indexes', 14, @indexes)
+
+DELETE FROM @types
+WHERE [include] = 0
+
+DECLARE @definitions table (
+	[type] varchar(4),
+	[schema] varchar(128),
+	[table] varchar(128),
+	[name] varchar(128),
+	[definition] nvarchar(max)
+)
+
+--============================================================--
+/* Schemata */
 
 IF @schemata IS NULL
 	SET @schemata = (
@@ -51,52 +99,6 @@ SET [schema_id] = [s].[schema_id]
 FROM sys.schemas AS [s]
 WHERE [schema] = [s].[name]
 
-DECLARE @cmd nvarchar(max), 
-	@sql nvarchar(max), 
-	@R int, 
-	@O int,
-	@type varchar(4),
-	@description varchar(64), 
-	@schema varchar(128),
-	@table varchar(128),
-	@name varchar(128), 
-	@definition nvarchar(max)
-
-DECLARE @types table (
-	[type] varchar(4),
-	[description] varchar(64),
-	[order] tinyint,
-	[include] bit
-)
-INSERT INTO @types
-VALUES ('SC', 'Schemata', 1, 1),
-	('U', 'Tables', 2, @tables),
-	('DT', 'Data', 3, @data),
-	('D', 'Default Constraints', 4, @default_constraints),
-	('C', 'Check Constraints', 5, @check_constraints),
-	('PK', 'Primary Keys', 6, @primary_keys),
-	('UQ', 'Unique Constraints', 7, @unique_constraints),
-	('F', 'Foreign Keys', 8, @foreign_keys),
-	('TR', 'Triggers', 9, @triggers),
-	('P', 'Stored Procedures', 10, @stored_procedures),
-	('FN', 'Scalar Functions', 11, @scalar_functions),
-	('TF', 'Table-Valued Functions', 12, @table_valued_functions),
-	('V', 'Views', 13, @views)
-
-DELETE FROM @types
-WHERE [include] = 0
-
-DECLARE @definitions table (
-	[type] varchar(4),
-	[schema] varchar(128),
-	[table] varchar(128),
-	[name] varchar(128),
-	[definition] nvarchar(max)
-)
-
---============================================================--
-/* Schemata */
-
 INSERT INTO @definitions
 SELECT 'SC' AS [type],
 	[s].[schema] AS [schema],
@@ -108,167 +110,181 @@ FROM @schemata_array AS [s]
 --============================================================--
 /* Tables */
 
-INSERT INTO @definitions
-SELECT [t].[type], 
-	SCHEMA_NAME([t].[schema_id]) AS [schema],
-	[t].[name] AS [table],
-	NULL AS [name],
-	CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], ']'', ''U'') IS NULL)', 
-	CHAR(10), 'BEGIN', 
-	CHAR(10), 'CREATE TABLE [', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], '] (',
-	STUFF((
-		SELECT CONCAT(',', CHAR(10), CHAR(9), 
-			'[', [c].[name] + '] ', 
-			[d].[name], 
-			CASE WHEN [d].[system_type_id] IN (106, 108) THEN CONCAT('(', [d].[precision], ', ', [d].[scale], ')')
-				WHEN [d].[system_type_id] IN (165, 167, 173, 175) THEN CONCAT('(', IIF([c].[max_length] = -1, 'max', CONVERT(varchar, [c].[max_length])), ')') 
-				WHEN [d].[system_type_id] IN (231, 239) THEN CONCAT('(', IIF([c].[max_length] = -1, 'max', CONVERT(varchar, [c].[max_length]/2)), ')') 
-				ELSE '' END,
-			IIF([c].[is_nullable] = 1, ' NULL', ' NOT NULL')
-		)
-		FROM sys.columns AS [c]
-			INNER JOIN sys.types AS [d]
-				ON [d].[system_type_id] = [c].[system_type_id]
-				AND [d].[user_type_id] = [c].[user_type_id]
-		WHERE [c].[object_id] = [t].[object_id]
-		FOR XML PATH(''), TYPE
-	).value('./text()[1]', 'nvarchar(max)'), 1, 1, ''),
-	CHAR(10), ')',
-	CHAR(10), 'END') AS [definition]
-FROM sys.tables AS [t]
-WHERE [t].[is_ms_shipped] = 0
-	AND [t].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+IF @tables = 1
+BEGIN
+	INSERT INTO @definitions
+	SELECT [t].[type], 
+		SCHEMA_NAME([t].[schema_id]) AS [schema],
+		[t].[name] AS [table],
+		NULL AS [name],
+		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], ']'', ''U'') IS NULL)', 
+		CHAR(10), 'BEGIN', 
+		CHAR(10), 'CREATE TABLE [', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], '] (',
+		STUFF((
+			SELECT CONCAT(',', CHAR(10), CHAR(9), 
+				'[', [c].[name] + '] ', 
+				[d].[name], 
+				CASE WHEN [d].[system_type_id] IN (106, 108) THEN CONCAT('(', [d].[precision], ', ', [d].[scale], ')')
+					WHEN [d].[system_type_id] IN (165, 167, 173, 175) THEN CONCAT('(', IIF([c].[max_length] = -1, 'max', CONVERT(varchar, [c].[max_length])), ')') 
+					WHEN [d].[system_type_id] IN (231, 239) THEN CONCAT('(', IIF([c].[max_length] = -1, 'max', CONVERT(varchar, [c].[max_length]/2)), ')') 
+					ELSE '' END,
+				IIF([c].[is_nullable] = 1, ' NULL', ' NOT NULL')
+			)
+			FROM sys.columns AS [c]
+				INNER JOIN sys.types AS [d]
+					ON [d].[system_type_id] = [c].[system_type_id]
+					AND [d].[user_type_id] = [c].[user_type_id]
+			WHERE [c].[object_id] = [t].[object_id]
+			FOR XML PATH(''), TYPE
+		).value('./text()[1]', 'nvarchar(max)'), 1, 1, ''),
+		CHAR(10), ')',
+		CHAR(10), 'END') AS [definition]
+	FROM sys.tables AS [t]
+	WHERE [t].[is_ms_shipped] = 0
+		AND [t].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+END
 
 --============================================================--
 /* Data */
 
-DECLARE data_cursor cursor FAST_FORWARD FOR
-SELECT [defs].[schema],
-	[defs].[table],
-	STUFF((
-		SELECT ', [' + [c].[name] + ']'
-		FROM sys.columns AS [c]
-		WHERE [c].[object_id] = OBJECT_ID(CONCAT('[', [defs].[schema], '].[', [defs].[table], ']'), 'U')
-		FOR XML PATH('')
-	), 1, 2, '') AS [definition]
-FROM @definitions AS [defs]
-WHERE [defs].[type] = 'U'
-
-OPEN data_cursor
-
-FETCH NEXT FROM data_cursor
-INTO @schema, @table, @definition
-
-WHILE @@FETCH_STATUS = 0
+IF @data = 1
 BEGIN
-	SET @cmd = CONCAT('SELECT @R = COUNT(*) FROM [', @schema, '].[', @table, ']')
-	EXECUTE sp_executesql @cmd, N'@R int OUTPUT', @R OUTPUT
-	IF @R = 0
-	BEGIN
-		INSERT INTO @definitions
-		VALUES ('DT', @schema, @table, @table + '_data', '/* Source table is empty. */')
-	END
-	ELSE IF @R > 1000
-	BEGIN
-		INSERT INTO @definitions
-		VALUES ('DT', @schema, @table, @table + '_data', '/* Source table has more than 1000 rows. */')
-	END
-	ELSE
-	BEGIN
-		SET @cmd = CONCAT('
-			SELECT @definition = STUFF((
-				SELECT '','' + CHAR(10) + ''('''''' + CONCAT_WS('''''', '''''', ', @definition, ') + '''''')''
-				FROM [', @schema, '].[', @table, ']
-				FOR XML PATH('''')
-			), 1, 2, '''')
-		')
-		EXECUTE sp_executesql @cmd, N'@definition nvarchar(max) OUTPUT', @definition OUTPUT
-		SET @definition = CONCAT('INSERT INTO [', @schema, '].[', @table, ']', CHAR(10), 'VALUES ', @definition)
-		SELECT @definition
-		INSERT INTO @definitions
-		VALUES ('DT', @schema, @table, @table + '_data', @definition)
-	END		
+	DECLARE data_cursor cursor FAST_FORWARD FOR
+	SELECT [defs].[schema],
+		[defs].[table],
+		STUFF((
+			SELECT ', [' + [c].[name] + ']'
+			FROM sys.columns AS [c]
+			WHERE [c].[object_id] = OBJECT_ID(CONCAT('[', [defs].[schema], '].[', [defs].[table], ']'), 'U')
+			FOR XML PATH('')
+		), 1, 2, '') AS [definition]
+	FROM @definitions AS [defs]
+	WHERE [defs].[type] = 'U'
+
+	OPEN data_cursor
 
 	FETCH NEXT FROM data_cursor
 	INTO @schema, @table, @definition
-END
 
-CLOSE data_cursor
-DEALLOCATE data_cursor
+	WHILE @@FETCH_STATUS = 0
+	BEGIN
+		SET @cmd = CONCAT('SELECT @R = COUNT(*) FROM [', @schema, '].[', @table, ']')
+		EXECUTE sp_executesql @cmd, N'@R int OUTPUT', @R OUTPUT
+		IF @R = 0
+		BEGIN
+			INSERT INTO @definitions
+			VALUES ('DT', @schema, @table, @table + '_data', '/* Source table is empty. */')
+		END
+		ELSE IF @R > 1000
+		BEGIN
+			INSERT INTO @definitions
+			VALUES ('DT', @schema, @table, @table + '_data', '/* Source table has more than 1000 rows. */')
+		END
+		ELSE
+		BEGIN
+			SET @cmd = CONCAT('
+				SELECT @definition = STUFF((
+					SELECT '','' + CHAR(10) + ''('''''' + CONCAT_WS('''''', '''''', ', @definition, ') + '''''')''
+					FROM [', @schema, '].[', @table, ']
+					FOR XML PATH('''')
+				), 1, 2, '''')
+			')
+			EXECUTE sp_executesql @cmd, N'@definition nvarchar(max) OUTPUT', @definition OUTPUT
+			SET @definition = CONCAT('INSERT INTO [', @schema, '].[', @table, ']', CHAR(10), 'VALUES ', @definition)
+			INSERT INTO @definitions
+			VALUES ('DT', @schema, @table, @table + '_data', @definition)
+		END		
+
+		FETCH NEXT FROM data_cursor
+		INTO @schema, @table, @definition
+	END
+
+	CLOSE data_cursor
+	DEALLOCATE data_cursor
+END
 
 --============================================================--
 /* Default Constraints */
 
-INSERT INTO @definitions
-SELECT [dc].[type],
-	SCHEMA_NAME([dc].[schema_id]) AS [schema],
-	OBJECT_NAME([dc].[parent_object_id]) AS [table],
-	[dc].[name],
-	CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([dc].[schema_id]), '].[', [dc].[name], ']'', ''D'') IS NULL)', 
-		CHAR(10), 'BEGIN', 
-		CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([dc].[schema_id]), '].[', OBJECT_NAME([dc].[parent_object_id]), ']', 
-		CHAR(10), CHAR(9), 'ADD CONSTRAINT ', [dc].[name],
-		CHAR(10), CHAR(9), 'DEFAULT ', [dc].[definition], ' FOR [', [c].[name], ']',
-		CHAR(10), 'END') AS [definition]
-FROM sys.default_constraints AS [dc]
-	INNER JOIN sys.columns AS [c]
-		ON [c].[object_id] = [dc].[parent_object_id]
-		AND [c].[column_id] = [dc].[parent_column_id]
-WHERE [dc].[is_ms_shipped] = 0
-	AND [dc].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+IF @default_constraints = 1
+BEGIN
+	INSERT INTO @definitions
+	SELECT [dc].[type],
+		SCHEMA_NAME([dc].[schema_id]) AS [schema],
+		OBJECT_NAME([dc].[parent_object_id]) AS [table],
+		[dc].[name],
+		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([dc].[schema_id]), '].[', [dc].[name], ']'', ''D'') IS NULL)', 
+			CHAR(10), 'BEGIN', 
+			CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([dc].[schema_id]), '].[', OBJECT_NAME([dc].[parent_object_id]), ']', 
+			CHAR(10), CHAR(9), 'ADD CONSTRAINT ', [dc].[name],
+			CHAR(10), CHAR(9), 'DEFAULT ', [dc].[definition], ' FOR [', [c].[name], ']',
+			CHAR(10), 'END') AS [definition]
+	FROM sys.default_constraints AS [dc]
+		INNER JOIN sys.columns AS [c]
+			ON [c].[object_id] = [dc].[parent_object_id]
+			AND [c].[column_id] = [dc].[parent_column_id]
+	WHERE [dc].[is_ms_shipped] = 0
+		AND [dc].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+END
 
 --============================================================--
 /* Check Constaints */
 
-INSERT INTO @definitions
-SELECT [cc].[type],
-	SCHEMA_NAME([cc].[schema_id]) AS [schema],
-	OBJECT_NAME([cc].[parent_object_id]) AS [table],
-	[cc].[name],
-	CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([cc].[schema_id]), '].[', [cc].[name], ']'', ''C'') IS NULL)', 
-		CHAR(10), 'BEGIN', 
-		CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([cc].[schema_id]), '].[', OBJECT_NAME([cc].[parent_object_id]), ']', 
-		CHAR(10), CHAR(9), 'ADD CONSTRAINT ', [cc].[name],
-		CHAR(10), CHAR(9), 'CHECK ', [cc].[definition],
-		CHAR(10), 'END') AS [definition]
-FROM sys.check_constraints AS [cc]
-	INNER JOIN sys.columns AS [c]
-		ON [c].[object_id] = [cc].[parent_object_id]
-		AND [c].[column_id] = [cc].[parent_column_id]
-WHERE [cc].[is_ms_shipped] = 0
-	AND [cc].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+IF @check_constraints = 1
+BEGIN
+	INSERT INTO @definitions
+	SELECT [cc].[type],
+		SCHEMA_NAME([cc].[schema_id]) AS [schema],
+		OBJECT_NAME([cc].[parent_object_id]) AS [table],
+		[cc].[name],
+		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([cc].[schema_id]), '].[', [cc].[name], ']'', ''C'') IS NULL)', 
+			CHAR(10), 'BEGIN', 
+			CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([cc].[schema_id]), '].[', OBJECT_NAME([cc].[parent_object_id]), ']', 
+			CHAR(10), CHAR(9), 'ADD CONSTRAINT ', [cc].[name],
+			CHAR(10), CHAR(9), 'CHECK ', [cc].[definition],
+			CHAR(10), 'END') AS [definition]
+	FROM sys.check_constraints AS [cc]
+		INNER JOIN sys.columns AS [c]
+			ON [c].[object_id] = [cc].[parent_object_id]
+			AND [c].[column_id] = [cc].[parent_column_id]
+	WHERE [cc].[is_ms_shipped] = 0
+		AND [cc].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+END
 
 --============================================================--
 /* Primary Keys and Unique Constraints */
 
-INSERT INTO @definitions
-SELECT IIF([i].[is_primary_key] = 1, 'PK', 'UQ') AS [type],
-	SCHEMA_NAME([schema_id]) AS [schema],
-	[t].[name] AS [table],
-	[i].[name],
-	CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([t].[schema_id]), '].[', [i].[name], ']'', ''', IIF([i].[is_primary_key] = 1, 'PK', 'UQ'), ''') IS NULL)', 
-		CHAR(10), 'BEGIN', 
-		CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], ']',
-		CHAR(10), CHAR(9), 'ADD CONSTRAINT ', [i].[name],
-		CHAR(10), CHAR(9), IIF([i].[is_primary_key] = 1, 'PRIMARY KEY ', 'UNIQUE '), [i].[type_desc] COLLATE database_default, '(', 
-		STUFF((
-			SELECT CONCAT(', [', [c].[name], ']')
-			FROM sys.index_columns AS [ic]
-				INNER JOIN sys.columns AS [c]
-					ON [c].[object_id] = [ic].[object_id]
-					AND [c].[column_id] = [ic].[column_id]
-			WHERE [ic].[object_id] = [i].[object_id]
-				AND [ic].[index_id] = [i].[index_id]
-			FOR XML PATH(''), TYPE
-		).value('./text()[1]', 'nvarchar(max)'), 1, 2, ''), 
-		')',
-		CHAR(10), 'END') AS [definition]
-FROM sys.indexes AS [i]
-	INNER JOIN sys.tables AS [t]
-		ON [t].[object_id] = [i].[object_id]
-WHERE ([i].[is_primary_key] = 1
-		OR [i].[is_unique_constraint] = 1)
-	AND [t].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+IF @primary_keys = 1 OR @unique_constraints = 1
+BEGIN
+	INSERT INTO @definitions
+	SELECT IIF([i].[is_primary_key] = 1, 'PK', 'UQ') AS [type],
+		SCHEMA_NAME([schema_id]) AS [schema],
+		[t].[name] AS [table],
+		[i].[name],
+		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([t].[schema_id]), '].[', [i].[name], ']'', ''', IIF([i].[is_primary_key] = 1, 'PK', 'UQ'), ''') IS NULL)', 
+			CHAR(10), 'BEGIN', 
+			CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], ']',
+			CHAR(10), CHAR(9), 'ADD CONSTRAINT ', [i].[name],
+			CHAR(10), CHAR(9), IIF([i].[is_primary_key] = 1, 'PRIMARY KEY ', 'UNIQUE '), [i].[type_desc] COLLATE database_default, '(', 
+			STUFF((
+				SELECT CONCAT(', [', [c].[name], ']')
+				FROM sys.index_columns AS [ic]
+					INNER JOIN sys.columns AS [c]
+						ON [c].[object_id] = [ic].[object_id]
+						AND [c].[column_id] = [ic].[column_id]
+				WHERE [ic].[object_id] = [i].[object_id]
+					AND [ic].[index_id] = [i].[index_id]
+				FOR XML PATH(''), TYPE
+			).value('./text()[1]', 'nvarchar(max)'), 1, 2, ''), 
+			')',
+			CHAR(10), 'END') AS [definition]
+	FROM sys.indexes AS [i]
+		INNER JOIN sys.tables AS [t]
+			ON [t].[object_id] = [i].[object_id]
+	WHERE ([i].[is_primary_key] = 1
+			OR [i].[is_unique_constraint] = 1)
+		AND [t].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+END
 
 --============================================================--
 /* Foreign Keys */
@@ -310,88 +326,97 @@ WHERE [fk].[is_ms_shipped] = 0
 --============================================================--
 /* Functions, Stored Procedures and Views */
 
-INSERT INTO @definitions
-SELECT REPLACE([o].[type], 'IF', 'TF') AS [type],
-	SCHEMA_NAME([o].[schema_id]) AS [schema],
-	NULL AS [table],
-	[o].[name],
-	CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']'', ''', RTRIM([o].[type]), ''') IS NULL)', 
-	CHAR(10), 'BEGIN', 
-	CHAR(10), STUFF((
-		SELECT [sc].[text]
-		FROM sys.syscomments AS [sc]
-		WHERE [sc].[id] = [o].[object_id]
-		FOR XML PATH(''), TYPE
-	).value('./text[1]', 'nvarchar(max)'), 1, 0, ''),
-	CHAR(10), 'END') AS [definition]
-FROM sys.objects AS [o]
-WHERE [o].[type] IN ('FN', 'IF', 'TF', 'V', 'P')
-	AND [o].[is_ms_shipped] = 0
-	AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
-	AND [o].[name] <> 'usp_build_db_creator'
-	AND [o].[name] NOT LIKE 'usp_%_create_%'
+IF 1 IN (@scalar_functions, @table_valued_functions, @stored_procedures, @views)
+BEGIN
+	INSERT INTO @definitions
+	SELECT REPLACE([o].[type], 'IF', 'TF') AS [type],
+		SCHEMA_NAME([o].[schema_id]) AS [schema],
+		NULL AS [table],
+		[o].[name],
+		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']'', ''', RTRIM([o].[type]) COLLATE database_default, ''') IS NULL)', 
+		CHAR(10), 'BEGIN', 
+		CHAR(10), [m].[definition],
+		CHAR(10), 'END') AS [definition]
+	FROM sys.objects AS [o]
+		INNER JOIN sys.sql_modules AS [m]
+			ON [m].[object_id] = [o].[object_id]
+	WHERE [o].[type] IN ('FN', 'IF', 'TF', 'V', 'P')
+		AND [o].[is_ms_shipped] = 0
+		AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+		AND [o].[name] <> 'usp_build_db_creator'
+END
 
 --============================================================--
 /* Triggers */
 
-INSERT INTO @definitions
-SELECT [tr].[type],
-	SCHEMA_NAME([o].[schema_id]) AS [schema],
-	[o].[name] AS [table],
-	[tr].[name],
-	CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [tr].[name], ']'', ''', [tr].[type], ''') IS NULL)', 
-	CHAR(10), 'BEGIN', 
-	CHAR(10), STUFF((
-		SELECT [sc].[text]
-		FROM sys.syscomments AS [sc]
-		WHERE [sc].[id] = [tr].[object_id]
-		FOR XML PATH(''), TYPE
-	).value('./text[1]', 'nvarchar(max)'), 1, 0, ''),
-	CHAR(10), 'END') AS [definition]
-FROM sys.triggers AS [tr]
-	INNER JOIN sys.objects AS [o]
-		ON [o].[object_id] = [tr].[parent_id]
-WHERE [tr].[is_ms_shipped] = 0
-	AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+IF @triggers = 1
+BEGIN
+	INSERT INTO @definitions
+	SELECT [tr].[type],
+		SCHEMA_NAME([o].[schema_id]) AS [schema],
+		[o].[name] AS [table],
+		[tr].[name],
+		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [tr].[name], ']'', ''', [tr].[type], ''') IS NULL)', 
+		CHAR(10), 'BEGIN', 
+		CHAR(10), STUFF((
+			SELECT [sc].[text]
+			FROM sys.syscomments AS [sc]
+			WHERE [sc].[id] = [tr].[object_id]
+			FOR XML PATH(''), TYPE
+		).value('./text[1]', 'nvarchar(max)'), 1, 0, ''),
+		CHAR(10), 'END') AS [definition]
+	FROM sys.triggers AS [tr]
+		INNER JOIN sys.objects AS [o]
+			ON [o].[object_id] = [tr].[parent_id]
+	WHERE [tr].[is_ms_shipped] = 0
+		AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+END
 
 --============================================================--
 /* Indexes */
 
-INSERT INTO @definitions
-SELECT 'I' AS [type],
-	SCHEMA_NAME([o].[schema_id]) AS [schema],
-	[o].[name] AS [table],
-	[i].[name],
-	CONCAT('IF EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = ''', [i].[name], ''' AND [object_id] = OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']'')', 
-	CHAR(10), 'BEGIN', 
-	CHAR(10), 'CREATE ', IIF([i].[is_unique] = 1, 'UNIQUE ', ''), [i].[type_desc] COLLATE database_default, 
-		CHAR(10), CHAR(9), 'INDEX ', [i].[name],
-		CHAR(10), CHAR(9), 'ON (',
-		STUFF((
-			SELECT CONCAT(', [', [c].[name], ']')
-			FROM sys.index_columns AS [ic]
-				INNER JOIN sys.columns AS [c]
-					ON [c].[object_id] = [ic].[object_id]
-					AND [c].[column_id] = [ic].[column_id]
-			WHERE [ic].[object_id] = [i].[object_id]
-				AND [ic].[index_id] = [i].[index_id]
-			FOR XML PATH(''), TYPE
-		).value('./type[1]', 'nvarchar(max)'), 1, 2, ''),
-		')',
-		CHAR(10), 'END') AS [definition]
-FROM sys.indexes AS [i]
-	INNER JOIN sys.objects AS [o]
-		ON [o].[object_id] = [i].[object_id]
-WHERE [i].[is_primary_key] = 0
-	AND [i].[is_unique_constraint] = 0
-	AND [i].[index_id] > 0
-	AND [o].[type] IN ('U', 'V')
-	AND [o].[object_id] IN (SELECT [schema_id] FROM @schemata_array)
+IF @indexes = 1
+BEGIN
+	INSERT INTO @definitions
+	SELECT 'I' AS [type],
+		SCHEMA_NAME([o].[schema_id]) AS [schema],
+		[o].[name] AS [table],
+		[i].[name],
+		CONCAT('IF EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = ''', [i].[name], ''' AND [object_id] = OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']'')', 
+		CHAR(10), 'BEGIN', 
+		CHAR(10), 'CREATE ', IIF([i].[is_unique] = 1, 'UNIQUE ', ''), [i].[type_desc] COLLATE database_default, 
+			CHAR(10), CHAR(9), 'INDEX ', [i].[name],
+			CHAR(10), CHAR(9), 'ON (',
+			STUFF((
+				SELECT CONCAT(', [', [c].[name], ']')
+				FROM sys.index_columns AS [ic]
+					INNER JOIN sys.columns AS [c]
+						ON [c].[object_id] = [ic].[object_id]
+						AND [c].[column_id] = [ic].[column_id]
+				WHERE [ic].[object_id] = [i].[object_id]
+					AND [ic].[index_id] = [i].[index_id]
+				FOR XML PATH(''), TYPE
+			).value('./type[1]', 'nvarchar(max)'), 1, 2, ''),
+			')',
+			CHAR(10), 'END') AS [definition]
+	FROM sys.indexes AS [i]
+		INNER JOIN sys.objects AS [o]
+			ON [o].[object_id] = [i].[object_id]
+	WHERE [i].[is_primary_key] = 0
+		AND [i].[is_unique_constraint] = 0
+		AND [i].[index_id] > 0
+		AND [o].[type] IN ('U', 'V')
+		AND [o].[object_id] IN (SELECT [schema_id] FROM @schemata_array)
+END
 
 --============================================================--
 /* Definitions Cursor */
 
-SET @sql = CONCAT('CREATE PROCEDURE [jra].[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_', DB_NAME(), '_', REPLACE(REPLACE(@schemata, ',', '_'), ' ', ''), ']', CHAR(10), 'AS')
+SET @definition = CONCAT('[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]_[', REPLACE(REPLACE(@schemata, ',', ']]_['), ' ', ''), ']')
+IF LEN(@definition) > 128
+	SET @sql = CONCAT('CREATE PROCEDURE [jra].[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]]', CHAR(10), 'AS')
+ELSE
+	SET @sql = CONCAT('CREATE PROCEDURE [jra].', @definition, CHAR(10), 'AS')
 
 DECLARE definitions_cursor cursor STATIC SCROLL FOR
 SELECT ROW_NUMBER() OVER(PARTITION BY [defs].[type] ORDER BY [schema], [table], [name]) AS [R],
