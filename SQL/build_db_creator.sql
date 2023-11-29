@@ -1,4 +1,5 @@
 CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
+-- DECLARE
 	@replace bit = 0,
 	@data bit = 0,
 	@schemata varchar(max) = NULL,
@@ -335,7 +336,7 @@ BEGIN
 		[o].[name],
 		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']'', ''', RTRIM([o].[type]) COLLATE database_default, ''') IS NULL)', 
 		CHAR(10), 'BEGIN', 
-		CHAR(10), [m].[definition],
+		CHAR(10), 'EXEC(''', REPLACE([m].[definition], '''', ''''''), ''')',
 		CHAR(10), 'END') AS [definition]
 	FROM sys.objects AS [o]
 		INNER JOIN sys.sql_modules AS [m]
@@ -356,7 +357,7 @@ BEGIN
 		SCHEMA_NAME([o].[schema_id]) AS [schema],
 		[o].[name] AS [table],
 		[tr].[name],
-		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [tr].[name], ']'', ''', [tr].[type], ''') IS NULL)', 
+		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [tr].[name], ']'', ''', [tr].[type] COLLATE database_default, ''') IS NULL)', 
 		CHAR(10), 'BEGIN', 
 		CHAR(10), STUFF((
 			SELECT [sc].[text]
@@ -382,11 +383,9 @@ BEGIN
 		SCHEMA_NAME([o].[schema_id]) AS [schema],
 		[o].[name] AS [table],
 		[i].[name],
-		CONCAT('IF EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = ''', [i].[name], ''' AND [object_id] = OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']'')', 
+		CONCAT('IF EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = ''', [i].[name], ''' AND [object_id] = OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']''))', 
 		CHAR(10), 'BEGIN', 
-		CHAR(10), 'CREATE ', IIF([i].[is_unique] = 1, 'UNIQUE ', ''), [i].[type_desc] COLLATE database_default, 
-			CHAR(10), CHAR(9), 'INDEX ', [i].[name],
-			CHAR(10), CHAR(9), 'ON (',
+		CHAR(10), 'CREATE ', IIF([i].[is_unique] = 1, 'UNIQUE ', ''), [i].[type_desc] COLLATE database_default, ' INDEX ', [i].[name], ' ON [', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], '](',
 			STUFF((
 				SELECT CONCAT(', [', [c].[name], ']')
 				FROM sys.index_columns AS [ic]
@@ -396,8 +395,8 @@ BEGIN
 				WHERE [ic].[object_id] = [i].[object_id]
 					AND [ic].[index_id] = [i].[index_id]
 				FOR XML PATH(''), TYPE
-			).value('./type[1]', 'nvarchar(max)'), 1, 2, ''),
-			')',
+			).value('./text()[1]', 'nvarchar(max)'), 1, 2, ''),
+			');',
 			CHAR(10), 'END') AS [definition]
 	FROM sys.indexes AS [i]
 		INNER JOIN sys.objects AS [o]
@@ -406,17 +405,20 @@ BEGIN
 		AND [i].[is_unique_constraint] = 0
 		AND [i].[index_id] > 0
 		AND [o].[type] IN ('U', 'V')
-		AND [o].[object_id] IN (SELECT [schema_id] FROM @schemata_array)
+		AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
 END
 
 --============================================================--
 /* Definitions Cursor */
 
+SET @sql = 'CREATE PROCEDURE [jra].'
 SET @definition = CONCAT('[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]_[', REPLACE(REPLACE(@schemata, ',', ']]_['), ' ', ''), ']')
 IF LEN(@definition) > 128
-	SET @sql = CONCAT('CREATE PROCEDURE [jra].[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]]', CHAR(10), 'AS')
+	SET @sql = CONCAT(@sql, '[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]]')
 ELSE
-	SET @sql = CONCAT('CREATE PROCEDURE [jra].', @definition, CHAR(10), 'AS')
+	SET @sql = CONCAT(@sql, @definition)
+
+SET @sql += CONCAT(CHAR(10), 'AS', CHAR(10), 'BEGIN')
 
 DECLARE definitions_cursor cursor STATIC SCROLL FOR
 SELECT ROW_NUMBER() OVER(PARTITION BY [defs].[type] ORDER BY [schema], [table], [name]) AS [R],
@@ -447,7 +449,7 @@ BEGIN
 			SET @sql += CONCAT(CHAR(10), '/* [', @schema, '].[', @table, '] */')
 		SET @sql += CONCAT(CHAR(10), '-- ', COALESCE(@name, @table, @schema), CHAR(10), 'IF (OBJECT_ID(''', @name, ''', ''F'') IS NOT NULL)',
 			CHAR(10), CHAR(9), 'ALTER TABLE [', @schema, '].[', @table, '] DROP CONSTRAINT ', @name,
-			CHAR(10), 'GO', CHAR(10))
+			';', CHAR(10))
 	END
 	ELSE IF @type IN ('FN', 'TF', 'V') AND @replace = 1
 	BEGIN
@@ -488,7 +490,7 @@ BEGIN
 		SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* ', @description, ' */', CHAR(10))
 	IF @O = 1 and @name IS NOT NULL AND @table IS NOT NULL
 		SET @sql += CONCAT(CHAR(10), '/* [', @schema, '].[', @table, '] */')
-	SET @sql += CONCAT(CHAR(10), '-- ', COALESCE(@name, @table, @schema), CHAR(10), @definition, CHAR(10), 'GO', CHAR(10))
+	SET @sql += CONCAT(CHAR(10), '-- ', COALESCE(@name, @table, @schema), CHAR(10), @definition, ';', CHAR(10))
 
 	FETCH NEXT FROM definitions_cursor
 	INTO @R, @O, @type, @description, @schema, @table, @name, @definition
@@ -497,4 +499,9 @@ END
 CLOSE definitions_cursor
 DEALLOCATE definitions_cursor
 
-EXECUTE [jra].[print] @sql
+SET @sql += CONCAT(CHAR(10), 'END')
+
+EXECUTE [utl].[usp_print] @sql
+
+SELECT * FROM @definitions ORDER BY [type], [schema], [table], [name]
+GO
