@@ -1,5 +1,5 @@
 CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
--- DECLARE
+--DECLARE
 	@replace bit = 0,
 	@data bit = 0,
 	@schemata varchar(max) = NULL,
@@ -14,7 +14,9 @@ CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
 	@scalar_functions bit = 1,
 	@table_valued_functions bit = 1,
 	@views bit = 1,
-	@indexes bit = 1
+	@indexes bit = 1,
+	@print bit = 1,
+	@display bit = 1
 )
 AS
 
@@ -25,7 +27,7 @@ DECLARE @cmd nvarchar(max),
 	@R int, 
 	@O int,
 	@type varchar(4),
-	@description varchar(64), 
+	@description varchar(128), 
 	@schema varchar(128),
 	@table varchar(128),
 	@name varchar(128), 
@@ -344,7 +346,10 @@ BEGIN
 	WHERE [o].[type] IN ('FN', 'IF', 'TF', 'V', 'P')
 		AND [o].[is_ms_shipped] = 0
 		AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
-		AND [o].[name] <> 'usp_build_db_creator'
+		AND NOT ([o].[schema_id] = SCHEMA_ID('jra')
+			AND ([o].[name] <> 'usp_build_db_creator'
+				OR [o].[name] LIKE 'usp_create_%'
+				OR [o].[name] LIKE 'usp_drop_and_create_%'))
 END
 
 --============================================================--
@@ -383,7 +388,7 @@ BEGIN
 		SCHEMA_NAME([o].[schema_id]) AS [schema],
 		[o].[name] AS [table],
 		[i].[name],
-		CONCAT('IF EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = ''', [i].[name], ''' AND [object_id] = OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']''))', 
+		CONCAT('IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = ''', [i].[name], ''' AND [object_id] = OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']''))', 
 		CHAR(10), 'BEGIN', 
 		CHAR(10), 'CREATE ', IIF([i].[is_unique] = 1, 'UNIQUE ', ''), [i].[type_desc] COLLATE database_default, ' INDEX ', [i].[name], ' ON [', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], '](',
 			STUFF((
@@ -411,12 +416,13 @@ END
 --============================================================--
 /* Definitions Cursor */
 
-SET @sql = 'CREATE PROCEDURE [jra].'
-SET @definition = CONCAT('[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]_[', REPLACE(REPLACE(@schemata, ',', ']]_['), ' ', ''), ']')
-IF LEN(@definition) > 128
-	SET @sql = CONCAT(@sql, '[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]]')
+SET @sql = 'CREATE OR ALTER PROCEDURE '
+SET @description = CONCAT('[jra].[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]_[', REPLACE(REPLACE(@schemata, ',', ']]_['), ' ', ''), ']')
+PRINT(@description)
+IF LEN(@description) >= 128
+	SET @sql = CONCAT(@sql, SUBSTRING(@description, 1, CHARINDEX(']]', @description)) + ']]')
 ELSE
-	SET @sql = CONCAT(@sql, @definition)
+	SET @sql = CONCAT(@sql, @description)
 
 SET @sql += CONCAT(CHAR(10), 'AS', CHAR(10), 'BEGIN')
 
@@ -499,9 +505,11 @@ END
 CLOSE definitions_cursor
 DEALLOCATE definitions_cursor
 
-SET @sql += CONCAT(CHAR(10), 'END')
+SET @sql += CONCAT(CHAR(10), 'END', CHAR(10), 'GO')
 
-EXECUTE [utl].[usp_print] @sql
-
-SELECT * FROM @definitions ORDER BY [type], [schema], [table], [name]
+IF @print = 1
+	EXECUTE [utl].[usp_print] @sql
+IF @display = 1
+	SELECT * FROM @definitions ORDER BY [type], [schema], [table], [name]
+EXEC(@sql)
 GO
