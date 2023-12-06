@@ -327,14 +327,14 @@ WHERE [fk].[is_ms_shipped] = 0
 		OR [s].[schema_id] IN (SELECT [schema_id] FROM @schemata_array))
 
 --============================================================--
-/* Functions, Stored Procedures and Views */
+/* Functions, Stored Procedures, Triggers and Views */
 
 IF 1 IN (@scalar_functions, @table_valued_functions, @stored_procedures, @views)
 BEGIN
 	INSERT INTO @definitions
 	SELECT REPLACE([o].[type], 'IF', 'TF') AS [type],
 		SCHEMA_NAME([o].[schema_id]) AS [schema],
-		NULL AS [table],
+		IIF([o].[type] = 'TR', OBJECT_NAME([o].[parent_object_id]), NULL) AS [table],
 		[o].[name],
 		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']'', ''', RTRIM([o].[type]) COLLATE database_default, ''') IS NULL)', 
 		CHAR(10), 'BEGIN', 
@@ -343,39 +343,13 @@ BEGIN
 	FROM sys.objects AS [o]
 		INNER JOIN sys.sql_modules AS [m]
 			ON [m].[object_id] = [o].[object_id]
-	WHERE [o].[type] IN ('FN', 'IF', 'TF', 'V', 'P')
+	WHERE [o].[type] IN ('FN', 'IF', 'TF', 'V', 'P', 'TR')
 		AND [o].[is_ms_shipped] = 0
 		AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
 		AND NOT ([o].[schema_id] = SCHEMA_ID('jra')
 			AND ([o].[name] <> 'usp_build_db_creator'
-				OR [o].[name] LIKE 'usp_create_%'
-				OR [o].[name] LIKE 'usp_drop_and_create_%'))
-END
-
---============================================================--
-/* Triggers */
-
-IF @triggers = 1
-BEGIN
-	INSERT INTO @definitions
-	SELECT [tr].[type],
-		SCHEMA_NAME([o].[schema_id]) AS [schema],
-		[o].[name] AS [table],
-		[tr].[name],
-		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [tr].[name], ']'', ''', [tr].[type] COLLATE database_default, ''') IS NULL)', 
-		CHAR(10), 'BEGIN', 
-		CHAR(10), STUFF((
-			SELECT [sc].[text]
-			FROM sys.syscomments AS [sc]
-			WHERE [sc].[id] = [tr].[object_id]
-			FOR XML PATH(''), TYPE
-		).value('./text[1]', 'nvarchar(max)'), 1, 0, ''),
-		CHAR(10), 'END') AS [definition]
-	FROM sys.triggers AS [tr]
-		INNER JOIN sys.objects AS [o]
-			ON [o].[object_id] = [tr].[parent_id]
-	WHERE [tr].[is_ms_shipped] = 0
-		AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+				OR [o].[name] LIKE 'usp_create_\[%'
+				OR [o].[name] LIKE 'usp_drop_and_create_\[%'))
 END
 
 --============================================================--
@@ -417,8 +391,7 @@ END
 /* Definitions Cursor */
 
 SET @sql = 'CREATE OR ALTER PROCEDURE '
-SET @description = CONCAT('[jra].[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]_[', REPLACE(REPLACE(@schemata, ',', ']]_['), ' ', ''), ']')
-PRINT(@description)
+SET @description = CONCAT('[jra].[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]_[', REPLACE(REPLACE(@schemata, ',', ']]_['), ' ', ''), ']]]')
 IF LEN(@description) >= 128
 	SET @sql = CONCAT(@sql, SUBSTRING(@description, 1, CHARINDEX(']]', @description)) + ']]')
 ELSE
@@ -454,14 +427,13 @@ BEGIN
 		IF @O = 1 and @name IS NOT NULL AND @table IS NOT NULL
 			SET @sql += CONCAT(CHAR(10), '/* [', @schema, '].[', @table, '] */')
 		SET @sql += CONCAT(CHAR(10), '-- ', COALESCE(@name, @table, @schema), CHAR(10), 'IF (OBJECT_ID(''', @name, ''', ''F'') IS NOT NULL)',
-			CHAR(10), CHAR(9), 'ALTER TABLE [', @schema, '].[', @table, '] DROP CONSTRAINT ', @name,
-			';', CHAR(10))
+			CHAR(10), CHAR(9), 'ALTER TABLE [', @schema, '].[', @table, '] DROP CONSTRAINT ', @name, ';', CHAR(10))
 	END
 	ELSE IF @type IN ('FN', 'TF', 'V') AND @replace = 1
 	BEGIN
 		IF @R = 1
 			SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* Dropping ', @description, ' */', CHAR(10))
-		SET @sql += CONCAT('DROP ', IIF(@type = 'V', 'VIEW', 'FUNCTION'), ' IF EXISTS [', @schema, '].[', @name, '] GO;', CHAR(10))
+		SET @sql += CONCAT('DROP ', IIF(@type = 'V', 'VIEW', 'FUNCTION'), ' IF EXISTS [', @schema, '].[', @name, '];', CHAR(10))
 	END
 
 	FETCH NEXT FROM definitions_cursor
@@ -479,7 +451,7 @@ BEGIN
 		BEGIN
 			IF @R = 1
 				SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* Dropping ', @description, ' */', CHAR(10))
-			SET @sql += CONCAT('DROP TABLE IF EXISTS [', @schema, '].[', @table, '] GO;', CHAR(10))
+			SET @sql += CONCAT('DROP TABLE IF EXISTS [', @schema, '].[', @table, '];', CHAR(10))
 		END
 
 		FETCH NEXT FROM definitions_cursor
@@ -505,10 +477,10 @@ END
 CLOSE definitions_cursor
 DEALLOCATE definitions_cursor
 
-SET @sql += CONCAT(CHAR(10), 'END', CHAR(10), 'GO')
+SET @sql += CONCAT(CHAR(10), 'END')
 
 IF @print = 1
-	EXECUTE [utl].[usp_print] @sql
+	EXECUTE [jra].[usp_print] @sql
 IF @display = 1
 	SELECT * FROM @definitions ORDER BY [type], [schema], [table], [name]
 EXEC(@sql)
