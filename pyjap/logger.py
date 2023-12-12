@@ -20,7 +20,7 @@ class Logger:
         logging.basicConfig(
             filename = self.file,
             filemode = 'w',
-            format = '\n--====== {levelname} {asctime} ======--  --== {funcName}() ==--\n{message}',
+            format = '\n--==#### {levelno}-{levelname} {asctime} ####==--  --== {module}.{funcName}:{lineno} ==--\n{message}',
             style = '{',
             level = 'INFO'
         )

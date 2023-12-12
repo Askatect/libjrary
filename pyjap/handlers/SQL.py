@@ -1,6 +1,6 @@
 import logging
 
-import pyjap.utilities as utl
+from pyjap.utilities import extract_param
 
 import pandas as pd
 import keyring as kr
@@ -93,7 +93,7 @@ class SQLHandler:
         self.conn = None
         if self._connection_string is not None:
             for param in [param for param, value in self._params.items() if value is None]:
-                self._params[param] = utl.extract_param(self._connection_string, param+'=', ';')
+                self._params[param] = extract_param(self._connection_string, param+'=', ';')
         elif environment is not None:
             for param in [param for param, value in self._params.items() if value is None]:
                 self._params[param] = kr.get_password(environment, param)
