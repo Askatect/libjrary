@@ -1,4 +1,4 @@
-import logging
+from pyjap.logger import LOG
 
 from pyjap.utilities import extract_param
 
@@ -75,7 +75,7 @@ class SQLHandler:
             connection_timeout (int, optional): Connection timeout in seconds. Default is 30.
         """
         if connection_string is None and environment is None and (server is None or database is None):
-            logging.critical("Not enough information given to start SQLHandler.")
+            LOG.critical("Not enough information given to start SQLHandler.")
             return
         self._connection_string = connection_string
         self._params = {
@@ -132,21 +132,21 @@ class SQLHandler:
         Establishes a connection to the SQL Server.
         """
         if self.connected:
-            logging.error(f"Connection to {str(self)} already open.")
+            LOG.error(f"Connection to {str(self)} already open.")
             return
-        logging.info(f'Attempting to connect to [{self._params["server"]}].[{self._params["database"]}]...')
+        LOG.info(f'Attempting to connect to {self}...')
         try:
             self.conn = pyodbc.connect(self._connection_string, autocommit = auto_commit)
             self.cursor = self.conn.cursor()
         except pyodbc.InterfaceError as error:
-            logging.error(f'Failed to connect to [{self._params["server"]}].[{self._params["database"]}]. {error}. Available drivers: {pyodbc.drivers()}.')
+            LOG.error(f'Failed to connect to {self}. {error}. Available drivers: {pyodbc.drivers()}.')
             raise
         except Exception as error:
-            logging.error(f'Failed to connect to [{self._params["server"]}].[{self._params["database"]}]. {error}')
+            LOG.error(f'Failed to connect to {self}. {error}')
             raise
         else:
             self.connected = True
-            logging.info(f"Successfully connected to {str(self)}.")
+            LOG.info(f"Successfully connected to {str(self)}.")
             return self.cursor
     
     def rollback(self):
@@ -154,9 +154,9 @@ class SQLHandler:
         Rolls back the current transaction.
         """
         if not self.connected:
-            logging.error("No open connection to roll back.")
+            LOG.error("No open connection to roll back.")
             return
-        logging.info(f"Rolling back transaction to {str(self)}.")
+        LOG.info(f"Rolling back transaction to {str(self)}.")
         self.conn.rollback()
         return
     
@@ -165,9 +165,9 @@ class SQLHandler:
         Commits the current transaction.
         """
         if not self.connected:
-            logging.error("No open connection to commit.")
+            LOG.error("No open connection to commit.")
             return
-        logging.info(f"Committing transaction to {str(self)}.")
+        LOG.info(f"Committing transaction to {str(self)}.")
         self.conn.commit()
         return
 
@@ -179,7 +179,7 @@ class SQLHandler:
             commit (bool, optional): Flag indicating whether to commit changes before closing. Default is True.
         """
         if not self.connected:
-            logging.error("No open connection to close.")
+            LOG.error("No open connection to close.")
             return
         if commit:
             self.commit()
@@ -188,7 +188,7 @@ class SQLHandler:
         self.cursor.close()
         self.conn.close()
         self.connected = False
-        logging.info(f"Closed connection to {str(self)}.")
+        LOG.info(f"Closed connection to {str(self)}.")
         return
     
     def select_to_dataframe(self, query: str):
@@ -205,7 +205,7 @@ class SQLHandler:
             try:
                 self.cursor = self.connect_to_mssql(auto_commit = False)
             except Exception as error:
-                logging.error(f"Could not connect to {self}. {error}.")
+                LOG.error(f"Could not connect to {self}. {error}.")
                 return
         selection = pd.read_sql_query(query, con=self.conn)
         self.close_connection(commit = False)
@@ -223,19 +223,21 @@ class SQLHandler:
             try:
                 self.cursor = self.connect_to_mssql(auto_commit = commit)
             except Exception as error:
-                logging.error(f"Could not connect to {self}. {error}.")
+                LOG.error(f"Could not connect to {self}. {error}.")
                 return
-        logging.info(f"Running script against {str(self)}:\n{query}\nValues: {values}.")
+        LOG.info(f"Running script against {str(self)}:\n{query}\nValues: {values}.")
         if values is None:
             self.cursor.execute(query)
         else:
             self.cursor.execute(query, (values))
         try:
             selection = self.cursor.fetchall()
+            cols = [col[0] for col in self.cursor.description]
         except:
             selection = None
+            cols = None
         self.close_connection(commit)
-        return selection
+        return selection, cols
 
     def insert(
         self, 
@@ -263,20 +265,20 @@ class SQLHandler:
             replace_table (bool, optional): Flag indicating whether to replace the existing table. Default is False.
         """
         if df is None and values is None:
-            logging.error("No values given to insert.")
+            LOG.error("No values given to insert.")
             return
         elif df is not None:
             cols = df.columns.to_list()
             values = df.values.tolist() 
         elif len(set([len(vals) for vals in values])) != 1:
-            logging.error("Value vectors must all be the same size.")
+            LOG.error("Value vectors must all be the same size.")
             return
         
         if not self.connected:
             try:
                 self.connect_to_mssql(auto_commit = commit)
             except Exception as error:
-                logging.error(f"Could not connect to {self}. {error}.")
+                LOG.error(f"Could not connect to {self}. {error}.")
                 return None
         
         if auto_create_table:
@@ -284,7 +286,7 @@ class SQLHandler:
         object_name = self._schema_table_to_object_name(schema, table)
 
         try:
-            logging.info(f"Inserting into {object_name} at {str(self)}...")
+            LOG.info(f"Inserting into {object_name} at {str(self)}...")
             self.connect_to_mssql(commit)
             self.cursor.fast_executemany = fast_execute
             cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(cols) + '])' if len(cols) > 0 else ''} VALUES ({'?' + (len(values[0]) - 1)*', ?'})"
@@ -292,14 +294,14 @@ class SQLHandler:
                 self.cursor.executemany(cmd, values)
             except Exception as error:
                 if fast_execute:
-                    logging.error(f"Insert failed. {error}.\nAttempting insert without fast_executemany...")
+                    LOG.error(f"Insert failed. {error}.\nAttempting insert without fast_executemany...")
                     self.cursor.fast_executemany = False
                     self.cursor.executemany(cmd, values)
         except Exception as error:
             self.close_connection(commit = False)
-            logging.error(f"Insert failed. Error: {error}.")
+            LOG.error(f"Insert failed. Error: {error}.")
         else:
-            logging.info(f"Insert complete!")
+            LOG.info(f"Insert complete!")
 
         self.close_connection(commit)
         return
@@ -325,9 +327,12 @@ class SQLHandler:
         """
         object_name = self._schema_table_to_object_name(schema, table)
         if not replace:
-            result = self.execute_query(f"SELECT 1 FROM sys.tables WHERE [object_id] = OBJECT_ID('{object_name}')")[0][0]
+            try:
+                result = self.execute_query(f"SELECT 1 FROM sys.tables WHERE [object_id] = OBJECT_ID('{object_name}')")[0][0][0]
+            except IndexError:
+                result = None
             if result is not None:
-                logging.info(f"The table {object_name} already exists.")
+                LOG.info(f"The table {object_name} already exists.")
                 return
             cmd = ""
         else:
@@ -337,7 +342,7 @@ class SQLHandler:
         if datatype_count >= col_count:
             datatypes = datatypes[:col_count]
         else:
-            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) FROM sys.types WHERE [system_type_id] = 231")[0][0]
+            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) FROM sys.types WHERE [system_type_id] = 231")[0][0][0]
             datatypes.extend([f'nvarchar({max_length})']*(col_count - datatype_count))
         column_definition = ',\n\t'.join(f"[{col}] {datatype}" for col, datatype in zip(columns, datatypes))
         cmd += f"CREATE TABLE {object_name} (\n\t{column_definition})"
@@ -345,7 +350,7 @@ class SQLHandler:
             self.execute_query(cmd, commit = commit)
         except Exception as error:
             self.close_connection(commit = False)
-            logging.error(f"Failed to create table {object_name} at {str(self)}. Error: {error}.")
+            LOG.error(f"Failed to create table {object_name} at {str(self)}. Error: {error}.")
         else:
-            logging.info(f"Successfully created table {object_name} at {str(self)}.")
+            LOG.info(f"Successfully created table {object_name} at {str(self)}.")
         return

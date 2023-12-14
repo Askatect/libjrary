@@ -1,4 +1,4 @@
-import logging
+from pyjap.logger import LOG
 
 import pyjap.utilities as utl
 
@@ -45,18 +45,18 @@ class AzureBlobHandler:
             connection_string (str, optional): The full Azure Blob Storage connection string.
         """
         if environment is None and connection_string is None:
-            logging.critical("One of environment and connection_string must be specified.")
+            LOG.critical("One of environment and connection_string must be specified.")
             return
         elif connection_string is None:
             connection_string = kr.get_password(environment, "blob_connection_string")
         self._connection_string = connection_string
-        logging.info(f"Connecting to {str(self)}...")
+        LOG.info(f"Connecting to {str(self)}...")
         try:
             self._storage_client = BlobServiceClient.from_connection_string(connection_string)
         except Exception as error:
-            logging.critical(f"Failed to connect to {str(self)}. " + str(error))
+            LOG.critical(f"Failed to connect to {str(self)}. {str(error)}")
         else:
-            logging.info(f"Successfully connected to {str(self)}.")
+            LOG.info(f"Successfully connected to {str(self)}.")
         return
     
     def __str__(self):
@@ -78,6 +78,7 @@ class AzureBlobHandler:
         Returns:
             Iterable: An iterable containing blob information.
         """
+        LOG.info(f"Getting list of blobs from {container} in {str(self)}.")
         with self._storage_client.get_container_client(container) as container_client:
             return container_client.list_blobs()
     
@@ -91,6 +92,7 @@ class AzureBlobHandler:
         Returns:
             Iterable: An iterable containing blob names.
         """
+        LOG.info(f'Getting list of blob names from "{container}" in {str(self)}.')
         with self._storage_client.get_container_client(container) as container_client:
             return container_client.list_blob_names()
         
@@ -105,6 +107,7 @@ class AzureBlobHandler:
         Returns:
             bytes: The content of the blob.
         """
+        LOG.info(f'Retrieving "{blob}" from "{container}" in {str(self)} as bytes.')
         blob_client = self._storage_client.get_blob_client(container, blob)
         return blob_client.download_blob().readall()
         
@@ -120,6 +123,7 @@ class AzureBlobHandler:
         Returns:
             str: The content of the blob as a string.
         """
+        LOG.info(f'Decoding "{blob}" from "{container}" in {str(self)} via {encoding} encoding.')
         return self.get_blob_as_bytes(container, blob).decode(encoding)
     
     def get_blob_csv_as_dataframe(self, container: str, blob: str, encoding: str = "utf-8"):
@@ -134,6 +138,7 @@ class AzureBlobHandler:
         Returns:
             pd.DataFrame: A pandas DataFrame containing the CSV data.
         """
+        LOG.info(f'Loading "{blob}" from "{container}" in {str(self)} into a dataframe.')
         return pd.read_csv(StringIO(self.get_blob_as_string(container, blob, encoding)))
     
     def copy_blob(
@@ -150,12 +155,13 @@ class AzureBlobHandler:
             source_container (str): The source container name.
             source_blob (str): The source blob name.
             target_container (str, optional): The target container name. Defaults to source_container.
-            target_blob (str, optional): The target blob name. Defaults to source_blob.replace('.', '_copy.').
+            target_blob (str, optional): The target blob name. Defaults to source_blob.replace('.', '_copy.') if in same container.
         """
         if target_container is None:
             target_container = source_container
-        if target_blob is None:
+        if target_blob is None and target_container == source_container:
             target_blob = source_blob.replace('.', '_copy.')
+        LOG.info(f'Copying "{source_blob}" from "{source_container}" to "{target_container}" in {str(self)}.')
         source_blob_client = self._storage_client.get_blob_client(source_container, source_blob)
         target_blob_client = self._storage_client.get_blob_client(target_container, target_blob)
         target_blob_client.start_copy_from_url(source_blob_client.url)
@@ -169,6 +175,7 @@ class AzureBlobHandler:
             container (str): The name of the container.
             blob (str): The name of the blob.
         """
+        LOG.info(f'Deleting "{blob}" from "{container}" in {str(self)}.')
         self._storage_client.get_blob_client(container, blob).delete_blob()
         return
     

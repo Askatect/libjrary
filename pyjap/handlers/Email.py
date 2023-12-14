@@ -1,4 +1,4 @@
-import logging
+from pyjap.logger import LOG
 
 import keyring as kr
 import smtplib
@@ -59,7 +59,7 @@ class EmailHandler:
             'port': port
         }
         if environment is None and None in [email, password, smtp]:
-            logging.warning("An environment or connection parameters must be specified.")
+            LOG.warning("An environment or connection parameters must be specified.")
             return
         elif environment is not None:
             for param in self.params.keys():
@@ -77,18 +77,18 @@ class EmailHandler:
         Connects to the SMTP server.
         """
         if self.connected:
-            logging.error("Connection already open.")
+            LOG.error("Connection already open.")
             return
-        logging.info(f"Attempting to connect to {self}.")
+        LOG.info(f"Attempting to connect to {self}.")
         try:
             self.connection = smtplib.SMTP(self.params['smtp'], self.params['port'])
             self.connection.starttls()
             self.connection.login(user = self.params['email'], password = self.params['password'])
         except Exception as error:
-            logging.error(f"Failed to connect to {self.params['smtp']}. {error}.")
+            LOG.error(f"Failed to connect to {self.params['smtp']}. {error}.")
         else:
             self.connected = True
-            logging.info(f"Successfully connected to {self.params['smtp']}.")
+            LOG.info(f"Successfully connected to {self.params['smtp']}.")
         return
     
     def send_email(self, 
@@ -123,10 +123,10 @@ class EmailHandler:
             try:
                 self.connect_to_smtp()
             except:
-                logging.error(f"Could not connect to {self}. {error}.")
+                LOG.error(f"Could not connect to {self}. {error}.")
                 return None
             
-        logging.info(f"Attempting to build email from {self.params['email']}...")
+        LOG.info(f"Attempting to build email from {self.params['email']}...")
         message_alt = MIMEMultipart('alternative')
                 
         message_alt.attach(MIMEText(body_alt_text, "plain"))
@@ -145,7 +145,7 @@ class EmailHandler:
                     part['Content-Disposition'] = f'attachment; filename={basename(file)}'
                     message_mix.attach(part)
                 except Exception as error:
-                    logging.error(f'Could not attach file "{file}". {error}.')
+                    LOG.error(f'Could not attach file "{file}". {error}.')
                     return
         else:
             message_mix = message_alt
@@ -155,15 +155,15 @@ class EmailHandler:
         message_mix["To"] = ",".join(to)
         message_mix["Cc"] = ",".join(cc)
 
-        logging.info("Email built!")
+        LOG.info("Email built!")
 
         try:
-            logging.info(f"Sending email from {self}...")
+            LOG.info(f"Sending email from {self}...")
             self.connection.sendmail(message_mix["From"], to + cc + bcc, message_mix.as_string())
         except Exception as error:
-            logging.error(f"Failed to send email. {error}.")
+            LOG.error(f"Failed to send email. {error}.")
         else:
-            logging.info("Email sent successfully!")
+            LOG.info("Email sent successfully!")
         self.close_connection()
         return
             
@@ -172,13 +172,13 @@ class EmailHandler:
         Closes the SMTP connection.
         """
         if not self.connected:
-            logging.error("No open connection.")
+            LOG.error("No open connection.")
             return
         try:
             self.connection.quit()
         except:
-            logging.error("Failed to close connection.")
+            LOG.error("Failed to close connection.")
         else:
             self.connected = False
-            logging.info(f"Closed connection to {self}.")
+            LOG.info(f"Closed connection to {self}.")
         return
