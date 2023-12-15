@@ -1,4 +1,4 @@
-from pyjap.logger import LOG
+from pyjap.Logger import LOG
 
 import keyring as kr
 import smtplib

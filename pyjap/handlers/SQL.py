@@ -1,4 +1,4 @@
-from pyjap.logger import LOG
+from pyjap.Logger import LOG
 
 from pyjap.utilities import extract_param
 
@@ -102,6 +102,8 @@ class SQLHandler:
             self._connection_string = ""
             for param, value in [(param, value) for param, value in self._params.items() if value is not None]:
                 self._connection_string += f"{param}={value};"
+
+        self.description = ()
         return
     
     def __str__(self):
@@ -185,6 +187,7 @@ class SQLHandler:
             self.commit()
         else:
             self.rollback()
+        self.description = self.cursor.description
         self.cursor.close()
         self.conn.close()
         self.connected = False
@@ -207,6 +210,7 @@ class SQLHandler:
             except Exception as error:
                 LOG.error(f"Could not connect to {self}. {error}.")
                 return
+        LOG.info(f"Generating dataframe against {str(self)}:\n{query}")
         selection = pd.read_sql_query(query, con=self.conn)
         self.close_connection(commit = False)
         return selection
@@ -232,12 +236,22 @@ class SQLHandler:
             self.cursor.execute(query, (values))
         try:
             selection = self.cursor.fetchall()
-            cols = [col[0] for col in self.cursor.description]
         except:
             selection = None
-            cols = None
         self.close_connection(commit)
-        return selection, cols
+        return selection
+    
+    def query_columns(self, query: str = None, values = None):
+        if query is not None:
+            self.execute_query(query, values, commit = False)
+
+        try:
+            cols = [col[0] for col in self.description]
+        except Exception as error:
+            LOG.warning(f"No query description available from {self}. {error}")
+            return None
+        else:
+            return cols
 
     def insert(
         self, 
@@ -328,7 +342,7 @@ class SQLHandler:
         object_name = self._schema_table_to_object_name(schema, table)
         if not replace:
             try:
-                result = self.execute_query(f"SELECT 1 FROM sys.tables WHERE [object_id] = OBJECT_ID('{object_name}')")[0][0][0]
+                result = self.execute_query(f"SELECT 1 FROM sys.tables WHERE [object_id] = OBJECT_ID('{object_name}')")[0][0]
             except IndexError:
                 result = None
             if result is not None:
@@ -342,7 +356,7 @@ class SQLHandler:
         if datatype_count >= col_count:
             datatypes = datatypes[:col_count]
         else:
-            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) FROM sys.types WHERE [system_type_id] = 231")[0][0][0]
+            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) FROM sys.types WHERE [system_type_id] = 231")[0][0]
             datatypes.extend([f'nvarchar({max_length})']*(col_count - datatype_count))
         column_definition = ',\n\t'.join(f"[{col}] {datatype}" for col, datatype in zip(columns, datatypes))
         cmd += f"CREATE TABLE {object_name} (\n\t{column_definition})"
