@@ -16,6 +16,7 @@ class Logger(logging.Logger):
         self.name = name or __name__
         super().__init__(self.name, 0)
 
+        self.info("Setting log level...")
         level_value = level_value or 20
         level_name = (level_name or 'INFO').upper()
         if f'Level {level_name}' != logging.getLevelName(level_name):
@@ -30,8 +31,9 @@ class Logger(logging.Logger):
         self.level_name = level_name
         self.setLevel(level_name) # Add try...except block for custom levels.
 
+        self.info("Setting log format...")
         self.formatter = logging.Formatter(
-            fmt = '\n--==## {levelno}-{levelname} {asctime} ##==--  --== {module}.{funcName}:{lineno} ==--\n{message}', 
+            fmt = '--==## {levelno}-{levelname} {asctime} ##==--  --== {module}.{funcName}:{lineno} ==--\n{message}\n', 
             style = '{'
         )
 
@@ -43,7 +45,7 @@ class Logger(logging.Logger):
         self.file = file
         self.print_to_file(self.file)
 
-        self.info(f'Logger "{self}" configured!')
+        self.info(f'Logger for "{self}" configured!')
         return
     
     def __str__(self):
@@ -53,15 +55,17 @@ class Logger(logging.Logger):
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter or self.formatter)
         self.addHandler(console_handler)
+        self.info("Console logging configured.")
         return
     
     def print_to_file(
         self, 
-        file: str,
+        filepath: str,
         formatter: logging.Formatter = None
     ):
-        os.makedirs(os.path.dirname(file), exist_ok = True)
-        file_handler = logging.FileHandler(file)
+        self.info(f'File logging configured for "{filepath}".')
+        os.makedirs(os.path.dirname(filepath), exist_ok = True)
+        file_handler = logging.FileHandler(filepath)
         file_handler.setFormatter(formatter or self.formatter)
         self.addHandler(file_handler)
         return

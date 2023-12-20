@@ -32,7 +32,7 @@ class AzureBlobHandler:
             content = handler.get_blob_as_string(container='your_container', blob=blob)
             # Perform operations with blob content
     """
-    def __init__(
+    def __init__( # Add parameters to this, a la SQLHandler.
         self,
         environment: str = None,
         connection_string: str = None
@@ -161,7 +161,7 @@ class AzureBlobHandler:
             target_container = source_container
         if target_blob is None and target_container == source_container:
             target_blob = source_blob.replace('.', '_copy.')
-        LOG.info(f'Copying "{source_blob}" from "{source_container}" to "{target_container}" in {str(self)}.')
+        LOG.info(f'Copying "{source_blob}" from "{source_container}" to "{target_blob}" in "{target_container}" at {str(self)}.')
         source_blob_client = self._storage_client.get_blob_client(source_container, source_blob)
         target_blob_client = self._storage_client.get_blob_client(target_container, target_blob)
         target_blob_client.start_copy_from_url(source_blob_client.url)

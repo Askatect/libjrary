@@ -1,7 +1,7 @@
-CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
---DECLARE
+-- CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
+DECLARE
 	@replace bit = 0,
-	@data bit = 0,
+	@data bit = 1,
 	@schemata varchar(max) = NULL,
 	@tables bit = 1,
 	@default_constraints bit = 1,
@@ -17,8 +17,8 @@ CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
 	@indexes bit = 1,
 	@print bit = 1,
 	@display bit = 1
-)
-AS
+-- )
+-- AS
 
 SET NOCOUNT ON
 
@@ -31,6 +31,7 @@ DECLARE @cmd nvarchar(max),
 	@schema varchar(128),
 	@table varchar(128),
 	@name varchar(128), 
+	@modified datetime2,
 	@definition nvarchar(max)
 
 DECLARE @types table (
@@ -63,6 +64,7 @@ DECLARE @definitions table (
 	[schema] varchar(128),
 	[table] varchar(128),
 	[name] varchar(128),
+	[object_id] int,
 	[definition] nvarchar(max)
 )
 
@@ -107,6 +109,7 @@ SELECT 'SC' AS [type],
 	[s].[schema] AS [schema],
 	NULL AS [table],
 	NULL AS [name],
+	NULL AS [object_id],
 	CONCAT('IF SCHEMA_ID(''', [s].[schema], ''') IS NULL', CHAR(10), CHAR(9), 'EXEC(''CREATE SCHEMA [', [s].[schema], ']'')') AS [definition]
 FROM @schemata_array AS [s]
 
@@ -120,6 +123,7 @@ BEGIN
 		SCHEMA_NAME([t].[schema_id]) AS [schema],
 		[t].[name] AS [table],
 		NULL AS [name],
+		[t].[object_id],
 		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], ']'', ''U'') IS NULL)', 
 		CHAR(10), 'BEGIN', 
 		CHAR(10), 'CREATE TABLE [', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], '] (',
@@ -156,11 +160,11 @@ BEGIN
 	SELECT [defs].[schema],
 		[defs].[table],
 		STUFF((
-			SELECT ', [' + [c].[name] + ']'
+			SELECT CONCAT(' + '', '',', CHAR(10), 'IIF([', [c].[name], '] IS NULL, ''NULL'', CONCAT('''''''', REPLACE([', [c].[name], '], '''''''', ''''''''''''), ''''''''))')
 			FROM sys.columns AS [c]
 			WHERE [c].[object_id] = OBJECT_ID(CONCAT('[', [defs].[schema], '].[', [defs].[table], ']'), 'U')
 			FOR XML PATH('')
-		), 1, 2, '') AS [definition]
+		), 1, 9, '') AS [definition]
 	FROM @definitions AS [defs]
 	WHERE [defs].[type] = 'U'
 
@@ -176,26 +180,26 @@ BEGIN
 		IF @R = 0
 		BEGIN
 			INSERT INTO @definitions
-			VALUES ('DT', @schema, @table, @table + '_data', '/* Source table is empty. */')
+			VALUES ('DT', @schema, @table, @table + '_data', OBJECT_ID(CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '['))), '/* Source table is empty. */')
 		END
 		ELSE IF @R > 1000
 		BEGIN
 			INSERT INTO @definitions
-			VALUES ('DT', @schema, @table, @table + '_data', '/* Source table has more than 1000 rows. */')
+			VALUES ('DT', @schema, @table, @table + '_data', OBJECT_ID(CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '['))), '/* Source table has more than 1000 rows. */')
 		END
 		ELSE
 		BEGIN
 			SET @cmd = CONCAT('
 				SELECT @definition = STUFF((
-					SELECT '','' + CHAR(10) + ''('''''' + CONCAT_WS('''''', '''''', ', @definition, ') + '''''')''
+					SELECT CONCAT('','', CHAR(10), CHAR(9), ''('', ', CHAR(10), @definition, ',', CHAR(10), ''')'')
 					FROM [', @schema, '].[', @table, ']
 					FOR XML PATH('''')
-				), 1, 2, '''')
+				), 1, 3, '''')
 			')
 			EXECUTE sp_executesql @cmd, N'@definition nvarchar(max) OUTPUT', @definition OUTPUT
 			SET @definition = CONCAT('INSERT INTO [', @schema, '].[', @table, ']', CHAR(10), 'VALUES ', @definition)
 			INSERT INTO @definitions
-			VALUES ('DT', @schema, @table, @table + '_data', @definition)
+			VALUES ('DT', @schema, @table, @table + '_data', OBJECT_ID(CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '['))), @definition)
 		END		
 
 		FETCH NEXT FROM data_cursor
@@ -216,6 +220,7 @@ BEGIN
 		SCHEMA_NAME([dc].[schema_id]) AS [schema],
 		OBJECT_NAME([dc].[parent_object_id]) AS [table],
 		[dc].[name],
+		[dc].[object_id],
 		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([dc].[schema_id]), '].[', [dc].[name], ']'', ''D'') IS NULL)', 
 			CHAR(10), 'BEGIN', 
 			CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([dc].[schema_id]), '].[', OBJECT_NAME([dc].[parent_object_id]), ']', 
@@ -240,6 +245,7 @@ BEGIN
 		SCHEMA_NAME([cc].[schema_id]) AS [schema],
 		OBJECT_NAME([cc].[parent_object_id]) AS [table],
 		[cc].[name],
+		[cc].[object_id],
 		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([cc].[schema_id]), '].[', [cc].[name], ']'', ''C'') IS NULL)', 
 			CHAR(10), 'BEGIN', 
 			CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([cc].[schema_id]), '].[', OBJECT_NAME([cc].[parent_object_id]), ']', 
@@ -264,6 +270,7 @@ BEGIN
 		SCHEMA_NAME([schema_id]) AS [schema],
 		[t].[name] AS [table],
 		[i].[name],
+		[i].[object_id],
 		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([t].[schema_id]), '].[', [i].[name], ']'', ''', IIF([i].[is_primary_key] = 1, 'PK', 'UQ'), ''') IS NULL)', 
 			CHAR(10), 'BEGIN', 
 			CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], ']',
@@ -297,6 +304,7 @@ SELECT [fk].[type],
 	SCHEMA_NAME([t].[schema_id]) AS [schema],
 	[t].[name] AS [table],
 	[fk].[name],
+	[fk].[object_id],
 	CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([t].[schema_id]), '].[', [fk].[name], ']'', ''F'') IS NULL)', 
 		CHAR(10), 'BEGIN', 
 		CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], ']',
@@ -336,6 +344,7 @@ BEGIN
 		SCHEMA_NAME([o].[schema_id]) AS [schema],
 		IIF([o].[type] = 'TR', OBJECT_NAME([o].[parent_object_id]), NULL) AS [table],
 		[o].[name],
+		[o].[object_id],
 		CONCAT('IF (OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']'', ''', RTRIM([o].[type]) COLLATE database_default, ''') IS NULL)', 
 		CHAR(10), 'BEGIN', 
 		CHAR(10), 'EXEC(''', REPLACE([m].[definition], '''', ''''''), ''')',
@@ -362,6 +371,7 @@ BEGIN
 		SCHEMA_NAME([o].[schema_id]) AS [schema],
 		[o].[name] AS [table],
 		[i].[name],
+		[i].[object_id],
 		CONCAT('IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = ''', [i].[name], ''' AND [object_id] = OBJECT_ID(''[', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], ']''))', 
 		CHAR(10), 'BEGIN', 
 		CHAR(10), 'CREATE ', IIF([i].[is_unique] = 1, 'UNIQUE ', ''), [i].[type_desc] COLLATE database_default, ' INDEX ', [i].[name], ' ON [', SCHEMA_NAME([o].[schema_id]), '].[', [o].[name], '](',
@@ -407,6 +417,11 @@ SELECT ROW_NUMBER() OVER(PARTITION BY [defs].[type] ORDER BY [schema], [table], 
 	[defs].[schema],
 	[defs].[table],
 	[defs].[name],
+	CASE WHEN [defs].[type] <> 'DT' 
+			THEN (SELECT MAX([modify_date]) FROM sys.objects WHERE sys.objects.[object_id] = [object_id])
+		WHEN [defs].[type] = 'DT' 
+			THEN (SELECT MAX([last_user_update]) FROM sys.dm_db_index_usage_stats WHERE sys.dm_db_index_usage_stats.[object_id] = [object_id])
+		ELSE NULL END AS [modified],
 	[defs].[definition]
 FROM @definitions AS [defs]
 	INNER JOIN @types AS [types]
@@ -416,7 +431,7 @@ ORDER BY [types].[order], [R], [O]
 OPEN definitions_cursor
 
 FETCH FIRST FROM definitions_cursor
-INTO @R, @O, @type, @description, @schema, @table, @name, @definition
+INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
@@ -437,11 +452,11 @@ BEGIN
 	END
 
 	FETCH NEXT FROM definitions_cursor
-	INTO @R, @O, @type, @description, @schema, @table, @name, @definition
+	INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
 END
 
 FETCH FIRST FROM definitions_cursor
-INTO @R, @O, @type, @description, @schema, @table, @name, @definition
+INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
 
 IF @replace = 1
 BEGIN
@@ -455,12 +470,12 @@ BEGIN
 		END
 
 		FETCH NEXT FROM definitions_cursor
-		INTO @R, @O, @type, @description, @schema, @table, @name, @definition
+		INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
 	END
 END
 
 FETCH FIRST FROM definitions_cursor
-INTO @R, @O, @type, @description, @schema, @table, @name, @definition
+INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
@@ -468,10 +483,10 @@ BEGIN
 		SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* ', @description, ' */', CHAR(10))
 	IF @O = 1 and @name IS NOT NULL AND @table IS NOT NULL
 		SET @sql += CONCAT(CHAR(10), '/* [', @schema, '].[', @table, '] */')
-	SET @sql += CONCAT(CHAR(10), '-- ', COALESCE(@name, @table, @schema), CHAR(10), @definition, ';', CHAR(10))
+	SET @sql += CONCAT(CHAR(10), '-- ', COALESCE(@name, @table, @schema), ' - Modified: ', @modified, CHAR(10), @definition, ';', CHAR(10))
 
 	FETCH NEXT FROM definitions_cursor
-	INTO @R, @O, @type, @description, @schema, @table, @name, @definition
+	INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
 END
 
 CLOSE definitions_cursor
@@ -482,6 +497,22 @@ SET @sql += CONCAT(CHAR(10), 'END')
 IF @print = 1
 	EXECUTE [jra].[usp_print] @sql
 IF @display = 1
-	SELECT * FROM @definitions ORDER BY [type], [schema], [table], [name]
+BEGIN
+	SELECT [types].[type],
+		[types].[description],
+		[defs].[schema],
+		[defs].[table],
+		[defs].[name],
+		CASE WHEN [defs].[type] <> 'DT' 
+				THEN (SELECT MAX([modify_date]) FROM sys.objects WHERE sys.objects.[object_id] = [object_id])
+			WHEN [defs].[type] = 'DT' 
+				THEN (SELECT MAX([last_user_update]) FROM sys.dm_db_index_usage_stats WHERE sys.dm_db_index_usage_stats.[object_id] = [object_id])
+			ELSE NULL END AS [modified],
+		[defs].[definition]
+	FROM @definitions AS [defs]
+		INNER JOIN @types AS [types]
+			ON [types].[type] = [defs].[type]
+	ORDER BY [types].[order]
+END
 EXEC(@sql)
 GO

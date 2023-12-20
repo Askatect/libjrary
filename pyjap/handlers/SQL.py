@@ -48,7 +48,7 @@ class SQLHandler:
         self,
         connection_string: str = None,
         environment: str = None,
-        driver: str = '{SQL Server}',
+        driver: str = None,
         server: str = None,
         port: int = None,
         database: str = None,
@@ -81,22 +81,28 @@ class SQLHandler:
         self._params = {
             'driver': driver,
             'server': server,
-            'port': str(port),
+            'port': port,
             'database': database,
             'uid': uid,
             'pwd': pwd,
             'encrypt': encrypt,
             'trustservercertificate': trust_server_certificate,
-            'connectiontimeout': str(connection_timeout)
+            'connectiontimeout': connection_timeout
         }
         self.connected = False
         self.conn = None
         if self._connection_string is not None:
+            LOG.info("Reading parameters from connection string.")
             for param in [param for param, value in self._params.items() if value is None]:
                 self._params[param] = extract_param(self._connection_string, param+'=', ';')
         elif environment is not None:
+            LOG.info("Getting parameters from keyring.")
             for param in [param for param, value in self._params.items() if value is None]:
-                self._params[param] = kr.get_password(environment, param)
+                value = kr.get_password(environment, param)
+                if value is None:
+                    LOG.warning(f'No value found for {param} in {environment} environment.')
+                else:
+                    self._params[param] = value
 
         if self._connection_string is None:
             self._connection_string = ""
@@ -106,16 +112,21 @@ class SQLHandler:
         self.description = ()
         return
     
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Returns a string representation of the connected server and database.
 
         Returns:
             str: A string in the format '[server].[database]'.
         """
+        # To return detailed information, could set this to return the following format:
+        # [SQL(server='server', database='database', etc...)]
         return f'[{self._params["server"]}].[{self._params["database"]}]'
     
-    def _schema_table_to_object_name(self, schema: str, table: str):
+    def __bool__(self) -> bool:
+        return self.connected
+    
+    def _schema_table_to_object_name(self, schema: str, table: str) -> str:
         """
         Converts schema and table names to a formatted object name.
 
@@ -129,7 +140,7 @@ class SQLHandler:
         schema = '' if schema is None or schema == '' else '[' + schema + '].'
         return f"{schema}[{table}]"
     
-    def connect_to_mssql(self, auto_commit: bool = False):
+    def connect_to_mssql(self, auto_commit: bool = False) -> pyodbc.Cursor|None:
         """
         Establishes a connection to the SQL Server.
         """
@@ -156,7 +167,7 @@ class SQLHandler:
         Rolls back the current transaction.
         """
         if not self.connected:
-            LOG.error("No open connection to roll back.")
+            LOG.warning("No open connection to roll back.")
             return
         LOG.info(f"Rolling back transaction to {str(self)}.")
         self.conn.rollback()
@@ -167,7 +178,7 @@ class SQLHandler:
         Commits the current transaction.
         """
         if not self.connected:
-            LOG.error("No open connection to commit.")
+            LOG.warning("No open connection to commit.")
             return
         LOG.info(f"Committing transaction to {str(self)}.")
         self.conn.commit()
@@ -194,7 +205,7 @@ class SQLHandler:
         LOG.info(f"Closed connection to {str(self)}.")
         return
     
-    def select_to_dataframe(self, query: str):
+    def select_to_dataframe(self, query: str, values: tuple = None) -> pd.DataFrame:
         """
         Executes a SELECT query and returns the result as a DataFrame.
 
@@ -210,10 +221,11 @@ class SQLHandler:
             except Exception as error:
                 LOG.error(f"Could not connect to {self}. {error}.")
                 return
-        LOG.info(f"Generating dataframe against {str(self)}:\n{query}")
-        selection = pd.read_sql_query(query, con=self.conn)
-        self.close_connection(commit = False)
-        return selection
+        LOG.info(f"Generating dataframe against {str(self)}.")
+        results = self.execute_query(query, values, commit = False)
+        # selection = pd.read_sql_query(query, con=self.conn)
+        # selection = pd.DataFrame.from_records(results, columns = self.query_columns())
+        return pd.DataFrame((tuple(row) for row in results), columns = self.query_columns())
     
     def execute_query(self, query: str, values: tuple = None, commit: bool = True) -> None|list[pyodbc.Row]:
         """
