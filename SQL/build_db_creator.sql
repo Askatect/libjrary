@@ -1,5 +1,5 @@
--- CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
-DECLARE
+CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
+--DECLARE
 	@replace bit = 0,
 	@data bit = 1,
 	@schemata varchar(max) = NULL,
@@ -17,8 +17,8 @@ DECLARE
 	@indexes bit = 1,
 	@print bit = 1,
 	@display bit = 1
--- )
--- AS
+)
+AS
 
 SET NOCOUNT ON
 
@@ -135,12 +135,16 @@ BEGIN
 					WHEN [d].[system_type_id] IN (165, 167, 173, 175) THEN CONCAT('(', IIF([c].[max_length] = -1, 'max', CONVERT(varchar, [c].[max_length])), ')') 
 					WHEN [d].[system_type_id] IN (231, 239) THEN CONCAT('(', IIF([c].[max_length] = -1, 'max', CONVERT(varchar, [c].[max_length]/2)), ')') 
 					ELSE '' END,
-				IIF([c].[is_nullable] = 1, ' NULL', ' NOT NULL')
+				IIF([c].[is_nullable] = 1, ' NULL', ' NOT NULL'),
+				IIF([ic].[is_identity] = 1, CONCAT(' IDENTITY(', CONVERT(int, [ic].[last_value]) + 1, ', ', CONVERT(int, [ic].[increment_value]), ')'), '')
 			)
 			FROM sys.columns AS [c]
 				INNER JOIN sys.types AS [d]
 					ON [d].[system_type_id] = [c].[system_type_id]
 					AND [d].[user_type_id] = [c].[user_type_id]
+				LEFT JOIN sys.identity_columns AS [ic]
+					ON [ic].[object_id] = [c].[object_id]
+					AND [ic].[column_id] = [c].[column_id]
 			WHERE [c].[object_id] = [t].[object_id]
 			FOR XML PATH(''), TYPE
 		).value('./text()[1]', 'nvarchar(max)'), 1, 1, ''),
@@ -166,6 +170,7 @@ BEGIN
 			FOR XML PATH('')
 		), 1, 9, '') AS [definition]
 	FROM @definitions AS [defs]
+		
 	WHERE [defs].[type] = 'U'
 
 	OPEN data_cursor
@@ -197,7 +202,9 @@ BEGIN
 				), 1, 3, '''')
 			')
 			EXECUTE sp_executesql @cmd, N'@definition nvarchar(max) OUTPUT', @definition OUTPUT
-			SET @definition = CONCAT('INSERT INTO [', @schema, '].[', @table, ']', CHAR(10), 'VALUES ', @definition)
+			SET @definition = CONCAT('INSERT INTO [', @schema, '].[', @table, '](', STUFF((SELECT ', ' + QUOTENAME([c].[name], '[') FROM sys.columns AS [c] WHERE [c].[object_id] = OBJECT_ID(CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '['))) FOR XML PATH('')), 1, 2, ''), ')', CHAR(10), 'VALUES ', @definition)
+			IF EXISTS (SELECT 1 FROM sys.identity_columns WHERE [object_id] = OBJECT_ID(CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '['))))
+				SET @definition = CONCAT('SET IDENTITY_INSERT ', CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '[')), ' ON', CHAR(10), @definition, CHAR(10), 'SET IDENTITY_INSERT ', CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '[')), ' OFF')
 			INSERT INTO @definitions
 			VALUES ('DT', @schema, @table, @table + '_data', OBJECT_ID(CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '['))), @definition)
 		END		
@@ -407,7 +414,7 @@ IF LEN(@description) >= 128
 ELSE
 	SET @sql = CONCAT(@sql, @description)
 
-SET @sql += CONCAT(CHAR(10), 'AS', CHAR(10), 'BEGIN')
+SET @sql += CONCAT(CHAR(10), 'AS', CHAR(10), '/* Script Generation: ', GETDATE(), ' */', CHAR(10), 'BEGIN')
 
 DECLARE definitions_cursor cursor STATIC SCROLL FOR
 SELECT ROW_NUMBER() OVER(PARTITION BY [defs].[type] ORDER BY [schema], [table], [name]) AS [R],
