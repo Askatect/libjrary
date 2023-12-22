@@ -368,7 +368,7 @@ class SQLHandler:
         if datatype_count >= col_count:
             datatypes = datatypes[:col_count]
         else:
-            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) FROM sys.types WHERE [system_type_id] = 231")[0][0]
+            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) FROM sys.types WHERE [system_type_id] = 231", commit = False)[0][0]
             datatypes.extend([f'nvarchar({max_length})']*(col_count - datatype_count))
         column_definition = ',\n\t'.join(f"[{col}] {datatype}" for col, datatype in zip(columns, datatypes))
         cmd += f"CREATE TABLE {object_name} (\n\t{column_definition})"

@@ -1,5 +1,5 @@
-CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
---DECLARE
+-- CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
+DECLARE
 	@replace bit = 0,
 	@data bit = 1,
 	@schemata varchar(max) = NULL,
@@ -17,8 +17,8 @@ CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
 	@indexes bit = 1,
 	@print bit = 1,
 	@display bit = 1
-)
-AS
+-- )
+-- AS
 
 SET NOCOUNT ON
 
