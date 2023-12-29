@@ -1,7 +1,7 @@
--- CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
-DECLARE
+CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
+--DECLARE
 	@replace bit = 0,
-	@data bit = 1,
+	@data bit = 0,
 	@schemata varchar(max) = NULL,
 	@tables bit = 1,
 	@default_constraints bit = 1,
@@ -17,8 +17,8 @@ DECLARE
 	@indexes bit = 1,
 	@print bit = 1,
 	@display bit = 1
--- )
--- AS
+)
+AS
 
 SET NOCOUNT ON
 
@@ -198,8 +198,8 @@ BEGIN
 				SELECT @definition = STUFF((
 					SELECT CONCAT('','', CHAR(10), CHAR(9), ''('', ', CHAR(10), @definition, ',', CHAR(10), ''')'')
 					FROM [', @schema, '].[', @table, ']
-					FOR XML PATH('''')
-				), 1, 3, '''')
+					FOR XML PATH(''''), TYPE
+				).value(''./text()[1]'', ''nvarchar(max)''), 1, 3, '''')
 			')
 			EXECUTE sp_executesql @cmd, N'@definition nvarchar(max) OUTPUT', @definition OUTPUT
 			SET @definition = CONCAT('INSERT INTO [', @schema, '].[', @table, '](', STUFF((SELECT ', ' + QUOTENAME([c].[name], '[') FROM sys.columns AS [c] WHERE [c].[object_id] = OBJECT_ID(CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '['))) FOR XML PATH('')), 1, 2, ''), ')', CHAR(10), 'VALUES ', @definition)
@@ -363,9 +363,9 @@ BEGIN
 		AND [o].[is_ms_shipped] = 0
 		AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
 		AND NOT ([o].[schema_id] = SCHEMA_ID('jra')
-			AND ([o].[name] <> 'usp_build_db_creator'
-				OR [o].[name] LIKE 'usp_create_\[%'
-				OR [o].[name] LIKE 'usp_drop_and_create_\[%'))
+			AND ([o].[name] = 'usp_build_db_creator'
+				OR [o].[name] LIKE 'usp_create_[[]%]'
+				OR [o].[name] LIKE 'usp_drop_and_create_[[]%]'))
 END
 
 --============================================================--
@@ -424,11 +424,6 @@ SELECT ROW_NUMBER() OVER(PARTITION BY [defs].[type] ORDER BY [schema], [table], 
 	[defs].[schema],
 	[defs].[table],
 	[defs].[name],
-	CASE WHEN [defs].[type] <> 'DT' 
-			THEN (SELECT MAX([modify_date]) FROM sys.objects WHERE sys.objects.[object_id] = [object_id])
-		WHEN [defs].[type] = 'DT' 
-			THEN (SELECT MAX([last_user_update]) FROM sys.dm_db_index_usage_stats WHERE sys.dm_db_index_usage_stats.[object_id] = [object_id])
-		ELSE NULL END AS [modified],
 	[defs].[definition]
 FROM @definitions AS [defs]
 	INNER JOIN @types AS [types]
@@ -438,7 +433,7 @@ ORDER BY [types].[order], [R], [O]
 OPEN definitions_cursor
 
 FETCH FIRST FROM definitions_cursor
-INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
+INTO @R, @O, @type, @description, @schema, @table, @name, @definition
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
@@ -459,11 +454,11 @@ BEGIN
 	END
 
 	FETCH NEXT FROM definitions_cursor
-	INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
+	INTO @R, @O, @type, @description, @schema, @table, @name, @definition
 END
 
 FETCH FIRST FROM definitions_cursor
-INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
+INTO @R, @O, @type, @description, @schema, @table, @name, @definition
 
 IF @replace = 1
 BEGIN
@@ -477,12 +472,12 @@ BEGIN
 		END
 
 		FETCH NEXT FROM definitions_cursor
-		INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
+		INTO @R, @O, @type, @description, @schema, @table, @name, @definition
 	END
 END
 
 FETCH FIRST FROM definitions_cursor
-INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
+INTO @R, @O, @type, @description, @schema, @table, @name, @definition
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
@@ -490,10 +485,10 @@ BEGIN
 		SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* ', @description, ' */', CHAR(10))
 	IF @O = 1 and @name IS NOT NULL AND @table IS NOT NULL
 		SET @sql += CONCAT(CHAR(10), '/* [', @schema, '].[', @table, '] */')
-	SET @sql += CONCAT(CHAR(10), '-- ', COALESCE(@name, @table, @schema), ' - Modified: ', @modified, CHAR(10), @definition, ';', CHAR(10))
+	SET @sql += CONCAT(CHAR(10), '-- ', COALESCE(@name, @table, @schema), CHAR(10), @definition, ';', CHAR(10))
 
 	FETCH NEXT FROM definitions_cursor
-	INTO @R, @O, @type, @description, @schema, @table, @name, @modified, @definition
+	INTO @R, @O, @type, @description, @schema, @table, @name, @definition
 END
 
 CLOSE definitions_cursor
@@ -510,11 +505,6 @@ BEGIN
 		[defs].[schema],
 		[defs].[table],
 		[defs].[name],
-		CASE WHEN [defs].[type] <> 'DT' 
-				THEN (SELECT MAX([modify_date]) FROM sys.objects WHERE sys.objects.[object_id] = [object_id])
-			WHEN [defs].[type] = 'DT' 
-				THEN (SELECT MAX([last_user_update]) FROM sys.dm_db_index_usage_stats WHERE sys.dm_db_index_usage_stats.[object_id] = [object_id])
-			ELSE NULL END AS [modified],
 		[defs].[definition]
 	FROM @definitions AS [defs]
 		INNER JOIN @types AS [types]
