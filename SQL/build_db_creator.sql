@@ -317,7 +317,7 @@ SELECT [fk].[type],
 		CHAR(10), 'ALTER TABLE [', SCHEMA_NAME([t].[schema_id]), '].[', [t].[name], ']',
 		CHAR(10), CHAR(9), 'ADD CONSTRAINT ', [fk].[name], 
 		CHAR(10), CHAR(9), 'FOREIGN KEY ([', [c].[name], '])',
-		CHAR(10), CHAR(9), 'REFERENCES [', SCHEMA_NAME([s].[schema_id]), '].[', [s].[name], '] ([', [b].[name], '])',
+		CHAR(10), CHAR(9), 'REFERENCES [', SCHEMA_NAME([s].[schema_id]), '].[', [s].[name], ']([', [b].[name], '])',
 		CHAR(10), CHAR(9), 'ON DELETE ', REPLACE([fk].[delete_referential_action_desc], '_', ' ') COLLATE database_default,
 		CHAR(10), CHAR(9), 'ON UPDATE ', REPLACE([fk].[update_referential_action_desc], '_', ' ') COLLATE database_default,
 		CHAR(10), 'END') AS [definition]
