@@ -50,10 +50,10 @@ VALUES ('SC', 'Schemata', 1, 1),
 	('UQ', 'Unique Constraints', 7, @unique_constraints),
 	('F', 'Foreign Keys', 8, @foreign_keys),
 	('TR', 'Triggers', 9, @triggers),
-	('P', 'Stored Procedures', 10, @stored_procedures),
-	('FN', 'Scalar Functions', 11, @scalar_functions),
-	('TF', 'Table-Valued Functions', 12, @table_valued_functions),
-	('V', 'Views', 13, @views),
+	('P', 'Stored Procedures', 13, @stored_procedures),
+	('FN', 'Scalar Functions', 10, @scalar_functions),
+	('TF', 'Table-Valued Functions', 11, @table_valued_functions),
+	('V', 'Views', 12, @views),
 	('I', 'Indexes', 14, @indexes)
 
 DELETE FROM @types
@@ -204,7 +204,9 @@ BEGIN
 			EXECUTE sp_executesql @cmd, N'@definition nvarchar(max) OUTPUT', @definition OUTPUT
 			SET @definition = CONCAT('INSERT INTO [', @schema, '].[', @table, '](', STUFF((SELECT ', ' + QUOTENAME([c].[name], '[') FROM sys.columns AS [c] WHERE [c].[object_id] = OBJECT_ID(CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '['))) FOR XML PATH('')), 1, 2, ''), ')', CHAR(10), 'VALUES ', @definition)
 			IF EXISTS (SELECT 1 FROM sys.identity_columns WHERE [object_id] = OBJECT_ID(CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '['))))
-				SET @definition = CONCAT('SET IDENTITY_INSERT ', CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '[')), ' ON', CHAR(10), @definition, CHAR(10), 'SET IDENTITY_INSERT ', CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '[')), ' OFF')
+				SET @definition = CONCAT('SET IDENTITY_INSERT ', CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '[')), ' ON', 
+					CHAR(10), @definition, 
+					CHAR(10), 'SET IDENTITY_INSERT ', CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '[')), ' OFF')
 			INSERT INTO @definitions
 			VALUES ('DT', @schema, @table, @table + '_data', OBJECT_ID(CONCAT(QUOTENAME(@schema, '['), '.', QUOTENAME(@table, '['))), @definition)
 		END		
