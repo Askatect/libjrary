@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE [jra].[delimited_string_to_table] (
+CREATE OR ALTER PROCEDURE [jra].[usp_string_table_split] (
     @string nvarchar(max),
     @separator nvarchar(max) = ',',
     @row_separator nvarchar(max) = ';',
@@ -6,6 +6,33 @@ CREATE OR ALTER PROCEDURE [jra].[delimited_string_to_table] (
     @print bit = 1,
     @display bit = 1
 )
+/* 
+Version: 1.0
+Author: JRA
+Date: 2024-01-06
+
+Description:
+Given a string of delimited data and the delimiters, a tabulated form of the data is created.
+
+Parameters:
+- @string (nvarchar(max)): The string of delimited data.
+- @separator (nvarchar(max)): The column separator.
+- @row_separator (nvarchar(max)): The row separator.
+- @header (bit): If true, the first row of the data is used as a header.
+- @print (bit): If true, debug prints will be displayed.
+- @display (bit): If true, tabular output will be displayed.
+
+Returns:
+- ##output (table): Tabulated data from given string.
+
+Usage:
+EXECUTE [jra].[usp_string_table_split]('Boss,Location;Massive Moss Charger,Greenpath', DEFAULT, DEFAULT, DEFAULT, 0, 1)
+>>> #======================#===========#
+    | Boss                 | Location  |
+    #======================#===========#
+    | Massive Moss Charger | Greenpath |
+    +----------------------+-----------+
+*/
 AS
 IF @print = 0
     SET NOCOUNT ON
@@ -40,7 +67,8 @@ ELSE
 SET @row = REPLACE(@row, @separator, ' nvarchar(max), ')
 SET @row = LEFT(@row, LEN(@row) - 1)
 
-DROP TABLE IF EXISTS ##output; SELECT '' AS [ ] INTO ##output -- Beat the intellisense.
+IF 1 = 0
+    DROP TABLE IF EXISTS ##output; SELECT '' AS [ ] INTO ##output -- Beat the intellisense.
 
 SET @cmd = CONCAT('DROP TABLE IF EXISTS ##output; 
 CREATE TABLE ##output (', @row, ')')

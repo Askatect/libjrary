@@ -1,6 +1,27 @@
-CREATE OR ALTER PROCEDURE [jra].[transpose_table] (@query varchar(max),
+CREATE OR ALTER PROCEDURE [jra].[usp_transpose_table] (@query varchar(max),
 	@output varchar(max) = '[jra].[output]'
 )
+/*
+Version: 1.0
+Author: JRA
+Date: 2024-01-06
+
+Description:
+Transposes a table defined by a DQR script.
+
+Parameters:
+- @query (varchar(max)): DQR script with table to transpose.
+- @output (varchar(max)): Name of output table.
+
+Usage:
+EXECUTE [jra].[usp_transpose_table] @query = 'SELECT * FROM (VALUES (''Sapphira'', ''Blue''), (''Thorn'', ''Red''), (''Glaedr'', ''Gold''), (''Firnen'', ''Green''), (''Shruikan'', ''Black'')) AS [T]([Dragon] nvarchar(max), [Colour] nvarchar(max))', @output = '##Transposed'
+SELECT * FROM ##Transposed
+>>> #========#==========#=======#========#========#==========#
+	| Dragon | Sapphira | Thorn | Glaedr | Firnen | Shruikan |
+	#========#==========#=======#========#========#==========#
+	| Colour | Blue     | Red   | Gold   | Green  | Black    |
+	+--------+----------+-------+--------+--------+----------+
+*/
 AS
 BEGIN
 	SET NOCOUNT ON

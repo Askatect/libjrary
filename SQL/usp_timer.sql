@@ -1,8 +1,30 @@
-CREATE PROCEDURE [jra].[timer] (
+CREATE OR ALTER PROCEDURE [jra].[usp_timer] (
 	@Start datetime,
 	@Process varchar(128) = 'Process',
 	@End datetime = NULL
 )
+/*
+Version: 1.0
+Author: JRA
+Date: 2024-01-06
+
+Description:
+Prints time elapsed during processes.
+
+Parameters:
+- @Start (datetime): Input process start time.
+- @Process varchar(128): Name of process for display. Defaults to 'Process'.
+- @End (datetime): End time of process.
+
+Returns:
+Prints time elapsed during processes.
+
+Usage:
+DECLARE @start datetime
+SET @start = GETDATE()
+<script>
+EXECUTE [jra].[usp_timer] @start, 'Script'
+*/
 AS
 BEGIN
 SET @End = ISNULL(@End, GETDATE())

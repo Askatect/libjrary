@@ -1,5 +1,35 @@
-CREATE OR ALTER FUNCTION [jra].[json_formatter](@json nvarchar(max))
+CREATE OR ALTER FUNCTION [jra].[ufn_json_formatter](@json nvarchar(max))
 RETURNS nvarchar(max)
+/*
+Version: 1.0
+Author: JRA
+Date: 2024-01-06
+
+Description:
+Formats an input JSON string with line breaks and indents.
+
+Parameters:
+- @json (nvarchar(max)): Input JSON to format.
+
+Returns:
+ - @json (nvarchar(max)): Formatted JSON.
+
+Usage:
+[jra].[ufn_json_formatter]('{"game": ["Super", "Mario", "Odyssey"], "moons": 880, "bosses": {"Cascade": "Madame Broode", "Metro": "Mechawiggler", "Ruined": "Lord of Lightning"}}')
+>>> {
+		"game": [
+			"Super",
+			"Mario",
+			"Odyssey"
+		],
+		"moons": 880,
+		"bosses": {
+			"Cascade": "Madame Broode",
+			"Metro": "Mechawiggler",
+			"Ruined": "Lord of Lightning"
+		}
+	}
+*/
 AS
 BEGIN
 SET @json = REPLACE(REPLACE(@json, CHAR(10), ''), CHAR(9), '')

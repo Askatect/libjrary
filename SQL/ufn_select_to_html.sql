@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE [jra].[select_to_html] (
+CREATE OR ALTER PROCEDURE [jra].[usp_select_to_html] (
     @query varchar(max),
     @order_by varchar(max) = NULL,
 	@out varchar(max) = '' OUTPUT,
@@ -6,6 +6,32 @@ CREATE OR ALTER PROCEDURE [jra].[select_to_html] (
     @print bit = 0,
     @display bit = 0
 )
+/*
+Version: 1.0
+Author: JRA
+Date: 2024-01-06
+
+Description:
+Takes the output table from a given DQL script and writes it to a HTML table.
+
+Parameters:
+- @query (nvarchar(max)): DQL script to get data.
+- @order_by (varchar(max)): ORDER BY clause. Defaults to no ordering.
+- @out (varchar(max) OUTPUT): Output HTML.
+- @sum (bit): If true, aggregates numerical data by summation. Defaults to false.
+- @print (bit): If true, prints debug statements. Defaults to false.
+- @display (bit): If true, displays outputs. Defaults to false.
+
+Prerequisites:
+- [jra].[ufn_gradient_hex]: Calculates gradients for numerical columns.
+
+Returns:
+- @out (nvarchar(max) OUTPUT): Output HTML.
+
+Usage:
+DECLARE @output nvarchar(max) = ''
+EXECUTE [jra].[usp_select_to_html] @query = 'SELECT * FROM [table]', @order_by = '[column1] ASC, [column2] DESC', @out = @output OUTPUT
+*/
 AS
 IF @print = 0
     SET NOCOUNT ON
@@ -159,15 +185,15 @@ BEGIN
                 IF @numeric <> 0 AND @min < 0
                 BEGIN
                     IF @value_float < 0
-                        SET @background = [jra].[gradient_hex](@value_float, @min, 0, @negative, @null)
+                        SET @background = [jra].[ufn_gradient_hex](@value_float, @min, 0, @negative, @null)
                     ELSE
-                        SET @background = [jra].[gradient_hex](@value_float, @max, 0, @positive, @null)
+                        SET @background = [jra].[ufn_gradient_hex](@value_float, @max, 0, @positive, @null)
                     SET @fontcolour = @white
                 END
                 ELSE
                 BEGIN
                     IF @numeric <> 0
-                        SET @background = [jra].[gradient_hex](@value_float, @min, @max, @white, @light_accent)
+                        SET @background = [jra].[ufn_gradient_hex](@value_float, @min, @max, @white, @light_accent)
                     ELSE IF @R % 2 = 0
                         SET @background = @white
                     ELSE
