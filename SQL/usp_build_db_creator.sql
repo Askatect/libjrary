@@ -18,47 +18,6 @@ CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
 	@print bit = 1,
 	@display bit = 1
 )
-/*
-Version: 1.1
-Author: JRA
-Date: 2024-01-06
-History:
-- 1.1: Prioritised views during programmability creation.
-
-Description:
-Reads schemata of the current database and writes the DDL commands to recreate objects into a stored procedure.
-
-Parameters:
-- @replace (bit): If true, the resulting procedure will overwrite existing objects when called. Defaults to false.
-- @data (bit): If true, the resulting procedure will feature data from the source (only from tables with no more than 1000 rows). Defaults to false.
-- @schemata varchar(max): Comma-delimited list of schemata to read. Defaults to all schemata.
-- @tables (bit): If true, the resulting procedure will feature DDL statements for tables. Defaults to true.
-- @default_constraints (bit): If true, the resulting procedure will feature DDL statements for default constraints. Defaults to true.
-- @check_constraints (bit): If true, the resulting procedure will feature DDL statements for check constraints. Defaults to true.
-- @primary_keys (bit): If true, the resulting procedure will feature DDL statements for primary keys. Defaults to true.
-- @unique_constraints (bit): If true, the resulting procedure will feature DDL statements for unique constraints. Defaults to true.
-- @foreign_keys (bit): If true, the resulting procedure will feature DDL statements for foreign keys. Defaults to true.
-- @triggers (bit): If true, the resulting procedure will feature DDL statements for triggers. Defaults to true.
-- @stored_procedures (bit): If true, the resulting procedure will feature DDL statements for stored procedures. Defaults to true.
-- @scalar_functions (bit): If true, the resulting procedure will feature DDL statements for scalar functions. Defaults to true.
-- @table_valued_functions (bit): If true, the resulting procedure will feature DDL statements for table-valued functions. Defaults to true.
-- @views (bit): If true, the resulting procedure will feature DDL statements for views. Defaults to true.
-- @indexes (bit): If true, the resulting procedure will feature DDL statements for indexes. Defaults to true.
-- @print (bit): If true, debug statements will be printed. Defaults to true.
-- @display (bit): If true, outputs will be displayed. Defaults to true.
-
-Prerequisites:
-- [jra].[ufn_string_split]: Splits a delimited string into an array.
-- [jra].[usp_print]: Prints large strings.
-
-Returns:
-Writes a stored procedure with the requested DDL statements for the requested schemata.
-
-Usage:
-USE [database]
-EXECUTE [jra].[usp_build_db_creator] @replace = 1, @schemata = 'jra,dbo'
->>> [jra].[usp_drop_and_create_[database]]_[dbo]]_[jra]]]
-*/
 AS
 
 SET NOCOUNT ON
@@ -91,10 +50,10 @@ VALUES ('SC', 'Schemata', 1, 1),
 	('UQ', 'Unique Constraints', 7, @unique_constraints),
 	('F', 'Foreign Keys', 8, @foreign_keys),
 	('TR', 'Triggers', 9, @triggers),
-	('P', 'Stored Procedures', 11, @stored_procedures),
-	('FN', 'Scalar Functions', 12, @scalar_functions),
-	('TF', 'Table-Valued Functions', 13, @table_valued_functions),
-	('V', 'Views', 10, @views),
+	('P', 'Stored Procedures', 10, @stored_procedures),
+	('FN', 'Scalar Functions', 11, @scalar_functions),
+	('TF', 'Table-Valued Functions', 12, @table_valued_functions),
+	('V', 'Views', 13, @views),
 	('I', 'Indexes', 14, @indexes)
 
 DELETE FROM @types
@@ -138,7 +97,7 @@ DECLARE @schemata_array table (
 	[schema] varchar(128)
 )
 INSERT INTO @schemata_array([schema])
-SELECT DISTINCT [value] FROM [jra].[ufn_string_split](@schemata + ',jra', ',')
+SELECT DISTINCT [value] FROM STRING_SPLIT(@schemata + ',jra', ',')
 
 UPDATE @schemata_array
 SET [schema_id] = [s].[schema_id]
