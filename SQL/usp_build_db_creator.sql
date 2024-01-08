@@ -1,5 +1,5 @@
 CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
---DECLARE
+-- DECLARE
 	@replace bit = 0,
 	@data bit = 0,
 	@schemata varchar(max) = NULL,
@@ -12,17 +12,20 @@ CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
 	@triggers bit = 1,
 	@stored_procedures bit = 1,
 	@scalar_functions bit = 1,
+	@inline_table_functions bit = 1,
 	@table_valued_functions bit = 1,
 	@views bit = 1,
 	@indexes bit = 1,
 	@print bit = 1,
-	@display bit = 1
+	@display bit = 1,
+	@commit bit = 0
 )
 /*
-Version: 1.1
+Version: 1.2
 Author: JRA
 Date: 2024-01-06
 History:
+- 1.2: Added automatic documentation, @commit and loop over objects to drop. Objects in [jra] schema are not dropped if not specified in @schemata, and schema collection was improved.
 - 1.1: Prioritised views during programmability creation.
 
 Description:
@@ -41,11 +44,13 @@ Parameters:
 - @triggers (bit): If true, the resulting procedure will feature DDL statements for triggers. Defaults to true.
 - @stored_procedures (bit): If true, the resulting procedure will feature DDL statements for stored procedures. Defaults to true.
 - @scalar_functions (bit): If true, the resulting procedure will feature DDL statements for scalar functions. Defaults to true.
+- @inline_table_functions (bit): If true, the resulting procedure will feature DDL statements for inline table functions. Defaults to true.
 - @table_valued_functions (bit): If true, the resulting procedure will feature DDL statements for table-valued functions. Defaults to true.
 - @views (bit): If true, the resulting procedure will feature DDL statements for views. Defaults to true.
 - @indexes (bit): If true, the resulting procedure will feature DDL statements for indexes. Defaults to true.
 - @print (bit): If true, debug statements will be printed. Defaults to true.
 - @display (bit): If true, outputs will be displayed. Defaults to true.
+- @commit (bit): If true, procedure will be created.
 
 Prerequisites:
 - [jra].[ufn_string_split]: Splits a delimited string into an array.
@@ -82,20 +87,21 @@ DECLARE @types table (
 	[include] bit
 )
 INSERT INTO @types
-VALUES ('SC', 'Schemata', 1, 1),
-	('U', 'Tables', 2, @tables),
+VALUES ('SC', 'Schema', 1, 1),
+	('U', 'Table', 2, @tables),
 	('DT', 'Data', 3, @data),
-	('D', 'Default Constraints', 4, @default_constraints),
-	('C', 'Check Constraints', 5, @check_constraints),
-	('PK', 'Primary Keys', 6, @primary_keys),
-	('UQ', 'Unique Constraints', 7, @unique_constraints),
-	('F', 'Foreign Keys', 8, @foreign_keys),
-	('TR', 'Triggers', 9, @triggers),
-	('P', 'Stored Procedures', 11, @stored_procedures),
-	('FN', 'Scalar Functions', 12, @scalar_functions),
-	('TF', 'Table-Valued Functions', 13, @table_valued_functions),
-	('V', 'Views', 10, @views),
-	('I', 'Indexes', 14, @indexes)
+	('D', 'Default Constraint', 4, @default_constraints),
+	('C', 'Check Constraint', 5, @check_constraints),
+	('PK', 'Primary Key', 6, @primary_keys),
+	('UQ', 'Unique Constraint', 7, @unique_constraints),
+	('F', 'Foreign Key', 8, @foreign_keys),
+	('TR', 'Trigger', 9, @triggers),
+	('P', 'Stored Procedure', 10, @stored_procedures),
+	('FN', 'Scalar Function', 11, @scalar_functions),
+	('IF', 'Inline Table Function', 12, @inline_table_functions),
+	('TF', 'Table-Valued Function', 13, @table_valued_functions),
+	('V', 'View', 14, @views),
+	('I', 'Index', 15, @indexes)
 
 DELETE FROM @types
 WHERE [include] = 0
@@ -116,43 +122,18 @@ IF @schemata IS NULL
 	SET @schemata = (
 		SELECT STRING_AGG([name], ',') 
 		FROM sys.schemas 
-		WHERE [name] NOT IN (
-			'public',	
-			'guest', 
-			'INFORMATION_SCHEMA', 
-			'sys', 
-			'db_owner', 
-			'db_accessadmin', 
-			'db_securityadmin', 
-			'db_ddladmin', 
-			'db_backupoperator',
-			'db_datareader',
-			'db_datawriter',
-			'db_denydatareader',
-			'db_denydatawriter'
-		)
+		WHERE [name] NOT IN ('public', 'guest', 'INFORMATION_SCHEMA', 'sys', 'db_owner', 'db_accessadmin', 'db_securityadmin', 'db_ddladmin', 'db_backupoperator', 'db_datareader', 'db_datawriter', 'db_denydatareader', 'db_denydatawriter')
 	)
-
-DECLARE @schemata_array table (
-	[schema_id] int,
-	[schema] varchar(128)
-)
-INSERT INTO @schemata_array([schema])
-SELECT DISTINCT [value] FROM [jra].[ufn_string_split](@schemata + ',jra', ',')
-
-UPDATE @schemata_array
-SET [schema_id] = [s].[schema_id]
-FROM sys.schemas AS [s]
-WHERE [schema] = [s].[name]
 
 INSERT INTO @definitions
 SELECT 'SC' AS [type],
-	[s].[schema] AS [schema],
+	[s].[name] AS [schema],
 	NULL AS [table],
 	NULL AS [name],
-	NULL AS [object_id],
-	CONCAT('IF SCHEMA_ID(''', [s].[schema], ''') IS NULL', CHAR(10), CHAR(9), 'EXEC(''CREATE SCHEMA [', [s].[schema], ']'')') AS [definition]
-FROM @schemata_array AS [s]
+	[s].[schema_id] AS [schema_id],
+	CONCAT('IF SCHEMA_ID(''', [s].[name], ''') IS NULL', CHAR(10), CHAR(9), 'EXEC(''CREATE SCHEMA [', [s].[name], ']'')') AS [definition]
+FROM sys.schemas AS [s]
+WHERE [s].[name] IN (SELECT DISTINCT [value] FROM [jra].[ufn_string_split](@schemata + ',jra', ','))
 
 --============================================================--
 /* Tables */
@@ -193,7 +174,7 @@ BEGIN
 		CHAR(10), 'END') AS [definition]
 	FROM sys.tables AS [t]
 	WHERE [t].[is_ms_shipped] = 0
-		AND [t].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+		AND [t].[schema_id] IN (SELECT [object_id] FROM @definitions WHERE [type] = 'SC')
 END
 
 --============================================================--
@@ -280,7 +261,7 @@ BEGIN
 			ON [c].[object_id] = [dc].[parent_object_id]
 			AND [c].[column_id] = [dc].[parent_column_id]
 	WHERE [dc].[is_ms_shipped] = 0
-		AND [dc].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+		AND [dc].[schema_id] IN (SELECT [object_id] FROM @definitions WHERE [type] = 'SC')
 END
 
 --============================================================--
@@ -305,7 +286,7 @@ BEGIN
 			ON [c].[object_id] = [cc].[parent_object_id]
 			AND [c].[column_id] = [cc].[parent_column_id]
 	WHERE [cc].[is_ms_shipped] = 0
-		AND [cc].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+		AND [cc].[schema_id] IN (SELECT [object_id] FROM @definitions WHERE [type] = 'SC')
 END
 
 --============================================================--
@@ -341,7 +322,7 @@ BEGIN
 			ON [t].[object_id] = [i].[object_id]
 	WHERE ([i].[is_primary_key] = 1
 			OR [i].[is_unique_constraint] = 1)
-		AND [t].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+		AND [t].[schema_id] IN (SELECT [object_id] FROM @definitions WHERE [type] = 'SC')
 END
 
 --============================================================--
@@ -379,8 +360,8 @@ FROM sys.foreign_keys AS [fk]
 		ON [b].[object_id] = [fkb].[referenced_object_id]
 		AND [b].[column_id] = [fkb].[referenced_column_id]
 WHERE [fk].[is_ms_shipped] = 0
-	AND ([t].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
-		OR [s].[schema_id] IN (SELECT [schema_id] FROM @schemata_array))
+	AND ([t].[schema_id] IN (SELECT [object_id] FROM @definitions WHERE [type] = 'SC')
+		OR [s].[schema_id] IN (SELECT [object_id] FROM @definitions WHERE [type] = 'SC'))
 
 --============================================================--
 /* Functions, Stored Procedures, Triggers and Views */
@@ -388,7 +369,7 @@ WHERE [fk].[is_ms_shipped] = 0
 IF 1 IN (@scalar_functions, @table_valued_functions, @stored_procedures, @views)
 BEGIN
 	INSERT INTO @definitions
-	SELECT REPLACE([o].[type], 'IF', 'TF') AS [type],
+	SELECT [o].[type],
 		SCHEMA_NAME([o].[schema_id]) AS [schema],
 		IIF([o].[type] = 'TR', OBJECT_NAME([o].[parent_object_id]), NULL) AS [table],
 		[o].[name],
@@ -402,7 +383,7 @@ BEGIN
 			ON [m].[object_id] = [o].[object_id]
 	WHERE [o].[type] IN ('FN', 'IF', 'TF', 'V', 'P', 'TR')
 		AND [o].[is_ms_shipped] = 0
-		AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+		AND [o].[schema_id] IN (SELECT [object_id] FROM @definitions WHERE [type] = 'SC')
 		AND NOT ([o].[schema_id] = SCHEMA_ID('jra')
 			AND ([o].[name] = 'usp_build_db_creator'
 				OR [o].[name] LIKE 'usp_create_[[]%]'
@@ -442,7 +423,7 @@ BEGIN
 		AND [i].[is_unique_constraint] = 0
 		AND [i].[index_id] > 0
 		AND [o].[type] IN ('U', 'V')
-		AND [o].[schema_id] IN (SELECT [schema_id] FROM @schemata_array)
+		AND [o].[schema_id] IN (SELECT [object_id] FROM @definitions WHERE [type] = 'SC')
 END
 
 --============================================================--
@@ -451,11 +432,33 @@ END
 SET @sql = 'CREATE OR ALTER PROCEDURE '
 SET @description = CONCAT('[jra].[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]_[', REPLACE(REPLACE(@schemata, ',', ']]_['), ' ', ''), ']]]')
 IF LEN(@description) >= 128
-	SET @sql = CONCAT(@sql, SUBSTRING(@description, 1, CHARINDEX(']]', @description)) + ']]')
-ELSE
-	SET @sql = CONCAT(@sql, @description)
+	SET @description = SUBSTRING(@description, 1, CHARINDEX(']]', @description)) + ']]'
+SET @sql = CONCAT(@sql, @description)
 
-SET @sql += CONCAT(CHAR(10), 'AS', CHAR(10), '/* Script Generation: ', GETDATE(), ' */', CHAR(10), 'BEGIN')
+SET @sql += CONCAT(
+	CHAR(10), '/*',
+	CHAR(10), 'Author: [jra].[usp_build_db_creator]',
+	CHAR(10), 'Date: ', FORMAT(GETUTCDATE(), 'yyyy-MM-dd HH:mm:ss'), CHAR(10),
+	CHAR(10), 'Description:',
+	CHAR(10), IIF(@replace = 1, 'Drops and c', 'C'), 'reates the following objects...',
+	(SELECT CHAR(10) + '- (' + LOWER([types].[description]) + '): ' + COALESCE([defs].[name], [defs].[table], [defs].[schema]) FROM @definitions AS [defs] INNER JOIN @types AS [types] ON [types].[type] = [defs].[type] ORDER BY [types].[order] FOR XML PATH('')), CHAR(10),
+	CHAR(10), 'Usage:',
+	CHAR(10), 'EXECUTE ', @description,
+	CHAR(10), '*/'
+)
+
+SET @sql += CONCAT(
+	CHAR(10), 'AS',
+	CHAR(10), 'BEGIN', CHAR(10),
+	IIF(@replace = 1, CONCAT(
+		CHAR(10), '--============================================================--',
+		CHAR(10), 'DECLARE @action bit;',
+		CHAR(10), 'SET @action = 1',
+		CHAR(10), 'WHILE @action = 1',
+		CHAR(10), 'BEGIN',
+		CHAR(10), 'SET @action = 0;',
+		CHAR(10)), '')
+)
 
 DECLARE definitions_cursor cursor STATIC SCROLL FOR
 SELECT ROW_NUMBER() OVER(PARTITION BY [defs].[type] ORDER BY [schema], [table], [name]) AS [R],
@@ -478,24 +481,54 @@ INTO @R, @O, @type, @description, @schema, @table, @name, @definition
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
+	IF '%' + @schema + '%' NOT LIKE @schemata
+	BEGIN
+		FETCH NEXT FROM definitions_cursor
+		INTO @R, @O, @type, @description, @schema, @table, @name, @definition
+		CONTINUE
+	END
+
 	IF @type = 'F'
 	BEGIN
 		IF @R = 1
 			SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* Dropping ', @description, ' */', CHAR(10))
 		IF @O = 1 and @name IS NOT NULL AND @table IS NOT NULL
 			SET @sql += CONCAT(CHAR(10), '/* [', @schema, '].[', @table, '] */')
-		SET @sql += CONCAT(CHAR(10), '-- ', COALESCE(@name, @table, @schema), CHAR(10), 'IF (OBJECT_ID(''', @name, ''', ''F'') IS NOT NULL)',
-			CHAR(10), CHAR(9), 'ALTER TABLE [', @schema, '].[', @table, '] DROP CONSTRAINT ', @name, ';', CHAR(10))
+		SET @sql += CONCAT(
+			CHAR(10), '-- ', COALESCE(@name, @table, @schema), 
+			CHAR(10), 'IF (OBJECT_ID(''', @name, ''', ''F'') IS NOT NULL)',
+			CHAR(10), 'BEGIN',
+			CHAR(10), CHAR(9), 'ALTER TABLE [', @schema, '].[', @table, '] DROP CONSTRAINT ', @name, ';', 
+			CHAR(10), CHAR(9), 'SET @action = 1',
+			CHAR(10), 'END',
+			CHAR(10)
+		)
 	END
 	ELSE IF @type IN ('FN', 'TF', 'V') AND @replace = 1
 	BEGIN
 		IF @R = 1
 			SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* Dropping ', @description, ' */', CHAR(10))
-		SET @sql += CONCAT('DROP ', IIF(@type = 'V', 'VIEW', 'FUNCTION'), ' IF EXISTS [', @schema, '].[', @name, '];', CHAR(10))
+		SET @sql += CONCAT(
+			CHAR(10), '-- ', COALESCE(@name, @table, @schema), 
+			CHAR(10), 'IF (OBJECT_ID(''[', @schema, '].[', @name, ']'', ''', @type, ''') IS NOT NULL)',
+			CHAR(10), 'BEGIN',
+			CHAR(10), CHAR(9), 'DROP ', IIF(@type = 'V', 'VIEW', 'FUNCTION'), ' IF EXISTS [', @schema, '].[', @name, '];', 
+			CHAR(10), CHAR(9), 'SET @action = 1',
+			CHAR(10), 'END',
+			CHAR(10)
+		)
 	END
 
 	FETCH NEXT FROM definitions_cursor
 	INTO @R, @O, @type, @description, @schema, @table, @name, @definition
+END
+
+IF @replace = 1
+BEGIN
+SET @sql += CONCAT(
+	CHAR(10), '--============================================================--',
+	CHAR(10), CHAR(10), 'END', CHAR(10)
+)
 END
 
 FETCH FIRST FROM definitions_cursor
@@ -552,5 +585,6 @@ BEGIN
 			ON [types].[type] = [defs].[type]
 	ORDER BY [types].[order]
 END
-EXEC(@sql)
+IF @commit = 1
+	EXEC(@sql)
 GO
