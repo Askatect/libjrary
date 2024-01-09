@@ -126,7 +126,7 @@ class AzureBlobHandler:
         LOG.info(f'Decoding "{blob}" from "{container}" in {str(self)} via {encoding} encoding.')
         return self.get_blob_as_bytes(container, blob).decode(encoding)
     
-    def get_blob_csv_as_dataframe(self, container: str, blob: str, encoding: str = "utf-8"):
+    def get_blob_csv_as_dataframe(self, container: str, blob: str, encoding: str = "utf-8", header: int = 0):
         """
         Retrieves the content of a CSV blob as a DataFrame.
 
@@ -139,7 +139,7 @@ class AzureBlobHandler:
             pd.DataFrame: A pandas DataFrame containing the CSV data.
         """
         LOG.info(f'Loading "{blob}" from "{container}" in {str(self)} into a dataframe.')
-        return pd.read_csv(StringIO(self.get_blob_as_string(container, blob, encoding)))
+        return pd.read_csv(StringIO(self.get_blob_as_string(container, blob, encoding)), header = header)
     
     def copy_blob(
         self, 

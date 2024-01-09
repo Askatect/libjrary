@@ -308,7 +308,9 @@ class SQLHandler:
                 return None
         
         if auto_create_table:
-            self.create_table(table, cols, schema = schema, replace = replace_table, commit = commit)
+            if not self.create_table(table, cols, schema = schema, replace = replace_table, commit = commit):
+                LOG.error(f"Could not create table for insert.")
+                return
         object_name = self._schema_table_to_object_name(schema, table)
 
         try:
@@ -340,7 +342,7 @@ class SQLHandler:
         schema: str = None, 
         replace: bool = False,
         commit: bool = True
-    ):
+    ) -> bool:
         """
         Creates a new table in the database.
 
@@ -350,6 +352,9 @@ class SQLHandler:
             datatypes (list, optional): List of column data types.
             schema (str, optional): The schema of the table.
             replace (bool, optional): Flag indicating whether to replace the existing table. Default is False.
+
+        Returns:
+        - (bool): Success flag of method.
         """
         object_name = self._schema_table_to_object_name(schema, table)
         if not replace:
@@ -359,7 +364,7 @@ class SQLHandler:
                 result = None
             if result is not None:
                 LOG.info(f"The table {object_name} already exists.")
-                return
+                return 0
             cmd = ""
         else:
             cmd = f"DROP TABLE IF EXISTS {object_name};\n"
@@ -371,12 +376,13 @@ class SQLHandler:
             max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) FROM sys.types WHERE [system_type_id] = 231", commit = False)[0][0]
             datatypes.extend([f'nvarchar({max_length})']*(col_count - datatype_count))
         column_definition = ',\n\t'.join(f"[{col}] {datatype}" for col, datatype in zip(columns, datatypes))
-        cmd += f"CREATE TABLE {object_name} (\n\t{column_definition})"
+        cmd += f"CREATE TABLE {object_name} (\n\t{column_definition}\n)"
         try:
             self.execute_query(cmd, commit = commit)
         except Exception as error:
             self.close_connection(commit = False)
             LOG.error(f"Failed to create table {object_name} at {str(self)}. Error: {error}.")
+            return 0
         else:
             LOG.info(f"Successfully created table {object_name} at {str(self)}.")
-        return
+            return 1
