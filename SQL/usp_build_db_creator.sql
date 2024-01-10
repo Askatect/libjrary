@@ -21,15 +21,16 @@ CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
 	@commit bit = 0
 )
 /*
-Version: 1.2
+Version: 1.3
 Author: JRA
-Date: 2024-01-06
-History:
-- 1.2: Added automatic documentation, @commit and loop over objects to drop. Objects in [jra] schema are not dropped if not specified in @schemata, and schema collection was improved.
-- 1.1: Prioritised views during programmability creation.
+Date: 2024-01-10
 
-Description:
+Explanation:
 Reads schemata of the current database and writes the DDL commands to recreate objects into a stored procedure.
+
+Requirements:
+- [jra].[ufn_string_split]: Splits a delimited string into an array.
+- [jra].[usp_print]: Prints large strings.
 
 Parameters:
 - @replace (bit): If true, the resulting procedure will overwrite existing objects when called. Defaults to false.
@@ -52,10 +53,6 @@ Parameters:
 - @display (bit): If true, outputs will be displayed. Defaults to true.
 - @commit (bit): If true, procedure will be created.
 
-Prerequisites:
-- [jra].[ufn_string_split]: Splits a delimited string into an array.
-- [jra].[usp_print]: Prints large strings.
-
 Returns:
 Writes a stored procedure with the requested DDL statements for the requested schemata.
 
@@ -63,6 +60,11 @@ Usage:
 USE [database]
 EXECUTE [jra].[usp_build_db_creator] @replace = 1, @schemata = 'jra,dbo'
 >>> [jra].[usp_drop_and_create_[database]]_[dbo]]_[jra]]]
+
+History:
+- 1.3 (2024-01-10): Datetime columns are formatted as 'yyyy-MM-dd HH:mm:ss.fff' in data extraction. Squashed a bug where programmability objects wouldn't be dropped if schemata is unspecified. Improved grammar of comment headers. Triggers get dropped when @replace is true.
+- 1.2 (2024-01-06): Added automatic documentation, @commit and loop over objects to drop. Objects in [jra] schema are not dropped if not specified in @schemata, and schema collection was improved.
+- 1.1 (2024-01-06): Prioritised views during programmability creation.
 */
 AS
 
@@ -186,7 +188,7 @@ BEGIN
 	SELECT [defs].[schema],
 		[defs].[table],
 		STUFF((
-			SELECT CONCAT(' + '', '',', CHAR(10), 'IIF([', [c].[name], '] IS NULL, ''NULL'', CONCAT('''''''', REPLACE([', [c].[name], '], '''''''', ''''''''''''), ''''''''))')
+			SELECT CONCAT(' + '', '',', CHAR(10), 'IIF([', [c].[name], '] IS NULL, ''NULL'', CONCAT('''''''', REPLACE(', IIF([c].[system_type_id] IN (40, 42, 43, 58, 61), CONCAT('FORMAT(', QUOTENAME([c].[name], '['), ', ''yyyy-MM-dd HH:mm:ss.fff'')'), QUOTENAME([c].[name], '[')), ', '''''''', ''''''''''''), ''''''''))')
 			FROM sys.columns AS [c]
 			WHERE [c].[object_id] = OBJECT_ID(CONCAT('[', [defs].[schema], '].[', [defs].[table], ']'), 'U')
 			FOR XML PATH('')
@@ -481,17 +483,10 @@ INTO @R, @O, @type, @description, @schema, @table, @name, @definition
 
 WHILE @@FETCH_STATUS = 0
 BEGIN
-	IF '%' + @schema + '%' NOT LIKE @schemata
-	BEGIN
-		FETCH NEXT FROM definitions_cursor
-		INTO @R, @O, @type, @description, @schema, @table, @name, @definition
-		CONTINUE
-	END
-
 	IF @type = 'F'
 	BEGIN
 		IF @R = 1
-			SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* Dropping ', @description, ' */', CHAR(10))
+			SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* ', @description, ' Dropping */', CHAR(10))
 		IF @O = 1 and @name IS NOT NULL AND @table IS NOT NULL
 			SET @sql += CONCAT(CHAR(10), '/* [', @schema, '].[', @table, '] */')
 		SET @sql += CONCAT(
@@ -504,15 +499,15 @@ BEGIN
 			CHAR(10)
 		)
 	END
-	ELSE IF @type IN ('FN', 'TF', 'V') AND @replace = 1
+	ELSE IF @type IN ('FN', 'TF', 'TR', 'V') AND @replace = 1
 	BEGIN
 		IF @R = 1
-			SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* Dropping ', @description, ' */', CHAR(10))
+			SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* ', @description, ' Dropping */', CHAR(10))
 		SET @sql += CONCAT(
 			CHAR(10), '-- ', COALESCE(@name, @table, @schema), 
 			CHAR(10), 'IF (OBJECT_ID(''[', @schema, '].[', @name, ']'', ''', @type, ''') IS NOT NULL)',
 			CHAR(10), 'BEGIN',
-			CHAR(10), CHAR(9), 'DROP ', IIF(@type = 'V', 'VIEW', 'FUNCTION'), ' IF EXISTS [', @schema, '].[', @name, '];', 
+			CHAR(10), CHAR(9), 'DROP ', CASE WHEN @type = 'V' THEN 'VIEW' WHEN @type = 'TR' THEN 'TRIGGER' ELSE 'FUNCTION' END, ' IF EXISTS [', @schema, '].[', @name, '];', 
 			CHAR(10), CHAR(9), 'SET @action = 1',
 			CHAR(10), 'END',
 			CHAR(10)
@@ -541,7 +536,7 @@ BEGIN
 		IF @type = 'U'
 		BEGIN
 			IF @R = 1
-				SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* Dropping ', @description, ' */', CHAR(10))
+				SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* ', @description, ' Dropping */', CHAR(10))
 			SET @sql += CONCAT('DROP TABLE IF EXISTS [', @schema, '].[', @table, '];', CHAR(10))
 		END
 
@@ -556,7 +551,7 @@ INTO @R, @O, @type, @description, @schema, @table, @name, @definition
 WHILE @@FETCH_STATUS = 0
 BEGIN
 	IF @R = 1
-		SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* ', @description, ' */', CHAR(10))
+		SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* ', @description, ' Creating */', CHAR(10))
 	IF @O = 1 and @name IS NOT NULL AND @table IS NOT NULL
 		SET @sql += CONCAT(CHAR(10), '/* [', @schema, '].[', @table, '] */')
 	SET @sql += CONCAT(CHAR(10), '-- ', COALESCE(@name, @table, @schema), CHAR(10), @definition, ';', CHAR(10))
