@@ -21,9 +21,9 @@ CREATE OR ALTER PROCEDURE [jra].[usp_build_db_creator] (
 	@commit bit = 0
 )
 /*
-Version: 1.3
+Version: 1.4
 Author: JRA
-Date: 2024-01-10
+Date: 2024-01-15
 
 Explanation:
 Reads schemata of the current database and writes the DDL commands to recreate objects into a stored procedure.
@@ -62,6 +62,7 @@ EXECUTE [jra].[usp_build_db_creator] @replace = 1, @schemata = 'jra,dbo'
 >>> [jra].[usp_drop_and_create_[database]]_[dbo]]_[jra]]]
 
 History:
+- 1.4 (2024-01-15): Adjusted docstring generation. Removed @action loop.
 - 1.3 (2024-01-10): Datetime columns are formatted as 'yyyy-MM-dd HH:mm:ss.fff' in data extraction. Squashed a bug where programmability objects wouldn't be dropped if schemata is unspecified. Improved grammar of comment headers. Triggers get dropped when @replace is true.
 - 1.2 (2024-01-06): Added automatic documentation, @commit and loop over objects to drop. Objects in [jra] schema are not dropped if not specified in @schemata, and schema collection was improved.
 - 1.1 (2024-01-06): Prioritised views during programmability creation.
@@ -435,31 +436,21 @@ SET @sql = 'CREATE OR ALTER PROCEDURE '
 SET @description = CONCAT('[jra].[usp_', IIF(@replace = 1, 'drop_and_', ''), 'create_[', DB_NAME(), ']]_[', REPLACE(REPLACE(@schemata, ',', ']]_['), ' ', ''), ']]]')
 IF LEN(@description) >= 128
 	SET @description = SUBSTRING(@description, 1, CHARINDEX(']]', @description)) + ']]'
-SET @sql = CONCAT(@sql, @description)
+SET @sql = CONCAT(@sql, @description, ' AS')
 
 SET @sql += CONCAT(
 	CHAR(10), '/*',
 	CHAR(10), 'Author: [jra].[usp_build_db_creator]',
 	CHAR(10), 'Date: ', FORMAT(GETUTCDATE(), 'yyyy-MM-dd HH:mm:ss'), CHAR(10),
 	CHAR(10), 'Description:',
-	CHAR(10), IIF(@replace = 1, 'Drops and c', 'C'), 'reates the following objects...',
-	(SELECT CHAR(10) + '- (' + LOWER([types].[description]) + '): ' + COALESCE([defs].[name], [defs].[table], [defs].[schema]) FROM @definitions AS [defs] INNER JOIN @types AS [types] ON [types].[type] = [defs].[type] ORDER BY [types].[order] FOR XML PATH('')), CHAR(10),
+	CHAR(10), IIF(@replace = 1, 'Drops and c', 'C'), 'reates the objects from the schemata ', REPLACE(@schema, ',', ', '), ', from database ', DB_NAME(), '.',
+	CHAR(10),
+	CHAR(10), 'Returns: ', (SELECT CHAR(10) + '- ' + COALESCE([defs].[name], [defs].[table], [defs].[schema]) + ' (' + LOWER([types].[description]) + ')' FROM @definitions AS [defs] INNER JOIN @types AS [types] ON [types].[type] = [defs].[type] ORDER BY [types].[order] FOR XML PATH('')), 
+	CHAR(10),
 	CHAR(10), 'Usage:',
 	CHAR(10), 'EXECUTE ', @description,
-	CHAR(10), '*/'
-)
-
-SET @sql += CONCAT(
-	CHAR(10), 'AS',
-	CHAR(10), 'BEGIN', CHAR(10),
-	IIF(@replace = 1, CONCAT(
-		CHAR(10), '--============================================================--',
-		CHAR(10), 'DECLARE @action bit;',
-		CHAR(10), 'SET @action = 1',
-		CHAR(10), 'WHILE @action = 1',
-		CHAR(10), 'BEGIN',
-		CHAR(10), 'SET @action = 0;',
-		CHAR(10)), '')
+	CHAR(10), '*/',
+	CHAR(10), 'BEGIN'
 )
 
 DECLARE definitions_cursor cursor STATIC SCROLL FOR
@@ -492,10 +483,7 @@ BEGIN
 		SET @sql += CONCAT(
 			CHAR(10), '-- ', COALESCE(@name, @table, @schema), 
 			CHAR(10), 'IF (OBJECT_ID(''', @name, ''', ''F'') IS NOT NULL)',
-			CHAR(10), 'BEGIN',
-			CHAR(10), CHAR(9), 'ALTER TABLE [', @schema, '].[', @table, '] DROP CONSTRAINT ', @name, ';', 
-			CHAR(10), CHAR(9), 'SET @action = 1',
-			CHAR(10), 'END',
+			CHAR(10), CHAR(9), 'ALTER TABLE [', @schema, '].[', @table, '] DROP CONSTRAINT ', @name, ';',
 			CHAR(10)
 		)
 	END
@@ -503,27 +491,17 @@ BEGIN
 	BEGIN
 		IF @R = 1
 			SET @sql += CONCAT(CHAR(10), '--============================================================--', CHAR(10), '/* ', @description, ' Dropping */', CHAR(10))
+		IF @O = 1 and @name IS NOT NULL AND @table IS NOT NULL
+			SET @sql += CONCAT(CHAR(10), '/* [', @schema, '].[', @table, '] */')
 		SET @sql += CONCAT(
 			CHAR(10), '-- ', COALESCE(@name, @table, @schema), 
-			CHAR(10), 'IF (OBJECT_ID(''[', @schema, '].[', @name, ']'', ''', @type, ''') IS NOT NULL)',
-			CHAR(10), 'BEGIN',
-			CHAR(10), CHAR(9), 'DROP ', CASE WHEN @type = 'V' THEN 'VIEW' WHEN @type = 'TR' THEN 'TRIGGER' ELSE 'FUNCTION' END, ' IF EXISTS [', @schema, '].[', @name, '];', 
-			CHAR(10), CHAR(9), 'SET @action = 1',
-			CHAR(10), 'END',
+			CHAR(10), 'DROP ', CASE WHEN @type = 'V' THEN 'VIEW' WHEN @type = 'TR' THEN 'TRIGGER' ELSE 'FUNCTION' END, ' IF EXISTS [', @schema, '].[', @name, '];', 
 			CHAR(10)
 		)
 	END
 
 	FETCH NEXT FROM definitions_cursor
 	INTO @R, @O, @type, @description, @schema, @table, @name, @definition
-END
-
-IF @replace = 1
-BEGIN
-SET @sql += CONCAT(
-	CHAR(10), '--============================================================--',
-	CHAR(10), CHAR(10), 'END', CHAR(10)
-)
 END
 
 FETCH FIRST FROM definitions_cursor

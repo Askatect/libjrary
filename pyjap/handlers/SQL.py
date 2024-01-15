@@ -1,4 +1,4 @@
-from pyjap.Logger import LOG
+from pyjap.logger import LOG
 
 from pyjap.utilities import extract_param
 
@@ -272,6 +272,8 @@ class SQLHandler:
         cols: list[str] = None, 
         values: list[list|tuple] = None,
         df: pd.DataFrame = None,
+        prescript: str = None,
+        postscript: str = None,
         fast_execute: bool = True,
         auto_create_table: bool = True,
         replace_table: bool = False,
@@ -281,14 +283,14 @@ class SQLHandler:
         Inserts data into the specified table.
 
         Args:
-            schema (str): The schema of the target table.
-            table (str): The name of the target table.
-            cols (list, optional): The list of column names for the insertion.
-            values (list[list|tuple], optional): The list of values to insert.
-            df (pd.DataFrame, optional): A DataFrame containing data to insert.
-            fast_execute (bool, optional): Flag indicating whether to use fast executemany. Default is True.
-            auto_create_table (bool, optional): Flag indicating whether to auto-create the table if not exists. Default is True.
-            replace_table (bool, optional): Flag indicating whether to replace the existing table. Default is False.
+        - schema (str): The schema of the target table.
+        - table (str): The name of the target table.
+        - cols (list, optional): The list of column names for the insertion.
+        - values (list[list|tuple], optional): The list of values to insert.
+        - df (pd.DataFrame, optional): A DataFrame containing data to insert.
+        - fast_execute (bool, optional): Flag indicating whether to use fast executemany. Default is True.
+        - auto_create_table (bool, optional): Flag indicating whether to auto-create the table if not exists. Default is True.
+        - replace_table (bool, optional): Flag indicating whether to replace the existing table. Default is False.
         """
         if df is None and values is None:
             LOG.error("No values given to insert.")
@@ -316,6 +318,9 @@ class SQLHandler:
         try:
             LOG.info(f"Inserting into {object_name} at {str(self)}...")
             self.connect_to_mssql(commit)
+            if prescript is not None:
+                LOG.info(f"Running script against {str(self)}:\n{prescript}")
+                self.cursor.execute(prescript)
             self.cursor.fast_executemany = fast_execute
             cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(cols) + '])' if len(cols) > 0 else ''} VALUES ({'?' + (len(values[0]) - 1)*', ?'})"
             try:
@@ -325,6 +330,9 @@ class SQLHandler:
                     LOG.error(f"Insert failed. {error}.\nAttempting insert without fast_executemany...")
                     self.cursor.fast_executemany = False
                     self.cursor.executemany(cmd, values)
+            if postscript is not None:
+                LOG.info(f"Running script against {str(self)}:\n{postscript}")
+                self.cursor.execute(postscript)
         except Exception as error:
             self.close_connection(commit = False)
             LOG.error(f"Insert failed. Error: {error}.")
@@ -359,12 +367,12 @@ class SQLHandler:
         object_name = self._schema_table_to_object_name(schema, table)
         if not replace:
             try:
-                result = self.execute_query(f"SELECT 1 FROM sys.tables WHERE [object_id] = OBJECT_ID('{object_name}')")[0][0]
+                result = self.execute_query(f"SELECT 1 FROM sys.tables WHERE [object_id] = OBJECT_ID('{object_name}')", commit = False)[0][0]
             except IndexError:
                 result = None
             if result is not None:
                 LOG.info(f"The table {object_name} already exists.")
-                return 0
+                return 1
             cmd = ""
         else:
             cmd = f"DROP TABLE IF EXISTS {object_name};\n"
