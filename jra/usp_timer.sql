@@ -38,4 +38,3 @@ PRINT(CONCAT('This is a duration of ',
 		IIF(@Minutes = 0, '', CONCAT(@Minutes, ' minute', IIF(@Minutes = 1, ' and ', 's and '))),
 			@Seconds, ' second', IIF(@Seconds = 1, '.', 's.'), CHAR(10)))
 END
-GO

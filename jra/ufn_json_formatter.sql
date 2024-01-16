@@ -127,4 +127,3 @@ END
 
 RETURN LTRIM(@json)
 END
-GO

@@ -5,6 +5,7 @@ from pyjap.utilities import extract_param
 import pandas as pd
 import keyring as kr
 import pyodbc
+import os
 
 class SQLHandler:
     """

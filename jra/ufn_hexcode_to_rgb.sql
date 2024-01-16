@@ -42,4 +42,3 @@ BEGIN
 	) AS [Output]([rgb], [value])
 	RETURN
 END
-GO

@@ -42,3 +42,4 @@ BEGIN
 	PRINT(SUBSTRING(@string, 1, @position))
 	SET @string = SUBSTRING(@string, @newline + @position, LEN(@string))
 END
+GO

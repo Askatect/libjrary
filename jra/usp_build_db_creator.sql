@@ -560,4 +560,3 @@ BEGIN
 END
 IF @commit = 1
 	EXEC(@sql)
-GO
