@@ -14,7 +14,7 @@ local = SQLHandler(
 )
 ################################################################
 filenames = os.listdir(directory)
-filenames = [filename for filename in filenames if filename.endswith('.sql') and filename.startswith(('ufn_', 'usp_'))]
+filenames = [filename for filename in filenames if filename.endswith('.sql') and filename.startswith(('ufn_', 'usp_', 'vw_', 'v_'))]
 for filename in filenames:
     with open(directory + '/' + filename, 'r') as file:
         lines = file.read().splitlines()
