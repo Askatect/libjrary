@@ -43,7 +43,6 @@ class Logger(logging.Logger):
         elif '.' not in file:
             file = file + '.txt'
         self.file = file
-        self.print_to_file(self.file)
 
         self.info(f'Logger for "{self}" configured!')
         return
@@ -60,9 +59,10 @@ class Logger(logging.Logger):
     
     def print_to_file(
         self, 
-        filepath: str,
+        filepath: str = None,
         formatter: logging.Formatter = None
     ):
+        filepath = filepath or self.file
         self.info(f'File logging configured for "{filepath}".')
         os.makedirs(os.path.dirname(filepath), exist_ok = True)
         file_handler = logging.FileHandler(filepath)
