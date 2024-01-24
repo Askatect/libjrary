@@ -1,8 +1,3 @@
-CREATE OR ALTER PROCEDURE [jra].[usp_timer] (
-	@Start datetime,
-	@Process varchar(128) = 'Process',
-	@End datetime = NULL
-)
 /*
 Version: 1.0
 Author: JRA
@@ -25,19 +20,21 @@ SET @start = GETDATE()
 <script>
 EXECUTE [jra].[usp_timer] @start, 'Script'
 */
-AS
-BEGIN
+
 DECLARE @process varchar(512) = NULL,
 	@start datetime = NULL,
-	@print bit = 1
+	@record bit = 1,
+	@print bit = 1,
+	@display bit = 0
 
 DECLARE @instance int
 
 WAITFOR DELAY '00:00:00'
 
-IF (OBJECT_ID('tempdb..#timer', 'U') IS NULL)
+IF @record = 1 AND (OBJECT_ID('tempdb..#timer', 'U') IS NULL)
 BEGIN
 	SELECT [r].[session_id],
+		@process AS [process],
 		1 AS [instance_id], 
 		[r].[start_time] AS [task_start],
 		[r].[start_time] AS [instance_start],
@@ -51,11 +48,12 @@ BEGIN
 	WHERE [r].[session_id] = @@SPID
 	SET @instance = 1
 END
-ELSE
+ELSE IF @record = 1
 BEGIN
 	SET @instance = (SELECT COUNT([instance_id]) + 1 FROM #timer)
-	INSERT INTO #timer([session_id], [instance_id], [task_start], [instance_start], [instance_end], [batch_text], [batch_id], [plan_id])
+	INSERT INTO #timer([session_id], [process], [instance_id], [task_start], [instance_start], [instance_end], [batch_text], [batch_id], [plan_id])
 	SELECT [r].[session_id], 
+		@process,
 		@instance,		
 		[r].[start_time],
 		COALESCE(@start, (SELECT [instance_end] FROM #timer WHERE [task_start] = [r].[start_time] AND [instance_id] = @instance - 1), [r].[start_time]),
@@ -71,10 +69,22 @@ END
 IF @print = 1
 BEGIN
 	DECLARE @statement nvarchar(max),
-		@duration bigint = (SELECT DATEDIFF(millisecond, [instance_start], [instance_end]) FROM #timer WHERE [instance_id] = @instance)
-	SET @statement = CONCAT(@process, ' (Instance ', @instance, ') - ', FORMAT((@duration/360000), '#00'), ':', FORMAT((@duration/60000 % 60), 'D2'), ':', FORMAT((@duration/1000 % 60), 'D2'), '.', FORMAT((@duration % 1000), 'D3'))
+		@duration bigint = IIF(@record = 0, GETDATE(), (SELECT DATEDIFF(millisecond, [instance_start], [instance_end]) FROM #timer WHERE [instance_id] = @instance))
+	SET @statement = CONCAT(@process, ' (Instance ', @instance, ') - ', FORMAT((@duration/360000), '###00'), ':', FORMAT((@duration/60000 % 60), 'D2'), ':', FORMAT((@duration/1000 % 60), 'D2'), '.', FORMAT((@duration % 1000), 'D3'))
 	PRINT(LTRIM(@statement))
 END
 
-SELECT * FROM #timer
-END
+SELECT [session_id] AS [Session ID],
+	[plan_id] AS [Plan ID],
+	[batch_id] AS [Batch ID],
+	ISNULL([process], '') AS [Process],
+	ROW_NUMBER() OVER(PARTITION BY [task_start] ORDER BY [instance_start] ASC) AS [Process Instance],
+	[instance_id] AS [Instance ID],
+	[task_start] AS [Task Start],
+	MAX([instance_end]) OVER(PARTITION BY [task_start]) AS [Task End],
+	DATEDIFF(millisecond, [task_start], MAX([instance_end]) OVER(PARTITION BY [task_start])) AS [Task Duration],
+	[instance_start] AS [Instance Start],
+	[instance_end] AS [Instance End],
+	DATEDIFF(millisecond, [instance_start], [instance_end]) AS [Instance Duration]
+FROM #timer
+ORDER BY [instance_id] ASC
