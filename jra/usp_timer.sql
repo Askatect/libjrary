@@ -7,7 +7,7 @@ CREATE OR ALTER PROCEDURE [jra].[usp_timer](
 )
 AS
 /*
-Version: 2.0
+Version: 2.1
 Author: JRA
 Date: 2024-01-25
 
@@ -22,7 +22,7 @@ Measures duration of instances and batches, with the options to print the durati
 Parameters:
 - @process varchar(512): The user can provide a process name for the instance just passed. Defaults to NULL.
 - @start datetime: The user can overwrite the start time for the instance just passed. Defaults to the end of the previous instance or the start of the batch (whichever is later).
-- @record bit: If true, the timer data is stored in #timer. Note that this means there will be nothing to display. Defaults to true.
+- @record bit: If true, the timer data is stored in ##timer. Note that this means there will be nothing to display. Defaults to true.
 - @print bit: If true, the procedure will print the process name (if applicable), the instance number and the duration of the instance. Defaults to true.
 - @display bit: If true, the timer data with aggregation will be displayed. Defaults to false.
 
@@ -53,44 +53,41 @@ END
 EXECUTE [jra].[usp_timer] @record = 0, @print = 0, @display = 1
 
 History:
+- 2.1 JRA (2024-01-25): Removed the batch text facility. Can't seem to get it working when called as a procedure.
 - 2.0 JRA (2024-01-25): Complete rewrite for easier use. Original functionality still preserved.
 - 1.0 JRA (2023): Initial version (required handling variables in main scope).
 */
 DECLARE @instance int
 
-IF @record = 1 AND (OBJECT_ID('tempdb..#timer', 'U') IS NULL)
+IF (@record = 1 AND (OBJECT_ID('tempdb..##timer', 'U') IS NULL))
 BEGIN
-	SELECT [r].[session_id],
+	SELECT [session_id],
 		@process AS [process],
 		1 AS [instance_id], 
-		[r].[start_time] AS [task_start],
-		[r].[start_time] AS [instance_start],
+		[start_time] AS [task_start],
+		[start_time] AS [instance_start],
 		GETDATE() AS [instance_end],
-		[s].[text] AS [batch_text],
-		[r].[sql_handle] AS [batch_id], 
-		[r].[plan_handle] AS [plan_id]
-	INTO #timer
-	FROM sys.dm_exec_requests AS [r]
-		CROSS APPLY sys.dm_exec_sql_text([r].[sql_handle]) AS [s]
-	WHERE [r].[session_id] = @@SPID
+		[sql_handle] AS [batch_id], 
+		[plan_handle] AS [plan_id]
+	INTO ##timer
+	FROM sys.dm_exec_requests
+	WHERE [session_id] = @@SPID
 	SET @instance = 1
 END
-ELSE IF @record = 1
+ELSE IF (@record = 1)
 BEGIN
-	SET @instance = (SELECT COUNT([instance_id]) + 1 FROM #timer)
-	INSERT INTO #timer([session_id], [process], [instance_id], [task_start], [instance_start], [instance_end], [batch_text], [batch_id], [plan_id])
-	SELECT [r].[session_id], 
+	SET @instance = (SELECT COUNT([instance_id]) + 1 FROM ##timer)
+	INSERT INTO ##timer([session_id], [process], [instance_id], [task_start], [instance_start], [instance_end], [batch_id], [plan_id])
+	SELECT [session_id], 
 		@process,
 		@instance,		
-		[r].[start_time],
-		COALESCE(@start, (SELECT [instance_end] FROM #timer WHERE [task_start] = [r].[start_time] AND [instance_id] = @instance - 1), [r].[start_time]),
+		[start_time],
+		COALESCE(@start, (SELECT [instance_end] FROM ##timer WHERE [task_start] = [start_time] AND [instance_id] = @instance - 1), [start_time]),
 		GETDATE(),
-		[s].[text],
-		[r].[sql_handle], 
-		[r].[plan_handle]
-	FROM sys.dm_exec_requests AS [r]
-		CROSS APPLY sys.dm_exec_sql_text([r].[sql_handle]) AS [s]
-	WHERE [r].[session_id] = @@SPID
+		[sql_handle], 
+		[plan_handle]
+	FROM sys.dm_exec_requests
+	WHERE [session_id] = @@SPID
 END
 
 IF @print = 1
@@ -98,13 +95,13 @@ BEGIN
 	DECLARE @statement nvarchar(max),
 		@duration bigint = IIF(@record = 0, 
 			DATEDIFF(millisecond, ISNULL(@start, (SELECT [start_time] FROM sys.dm_exec_requests)), GETDATE()), 
-			(SELECT DATEDIFF(millisecond, [instance_start], [instance_end]) FROM #timer WHERE [instance_id] = @instance)
+			(SELECT DATEDIFF(millisecond, [instance_start], [instance_end]) FROM ##timer WHERE [instance_id] = @instance)
 		)
 	SET @statement = CONCAT(@process, ' (Instance ', @instance, ') - ', FORMAT((@duration/360000), '###00'), ':', FORMAT((@duration/60000 % 60), 'D2'), ':', FORMAT((@duration/1000 % 60), 'D2'), '.', FORMAT((@duration % 1000), 'D3'))
 	PRINT(LTRIM(@statement))
 END
 
-IF @display = 1 AND (OBJECT_ID('tempdb..#timer') IS NOT NULL)
+IF @display = 1 AND (OBJECT_ID('tempdb..##timer') IS NOT NULL)
 BEGIN
 	;WITH [timer] AS (
 		SELECT [session_id] AS [Session ID],
@@ -119,18 +116,19 @@ BEGIN
 			[instance_start] AS [Instance Start],
 			[instance_end] AS [Instance End],
 			DATEDIFF(millisecond, [instance_start], [instance_end]) AS [Instance Duration]
-		FROM #timer
+		FROM ##timer
+		WHERE [session_id] = @@SPID
 	)
 	SELECT *,
 		MIN([Task Duration]) OVER(PARTITION BY [Plan ID]) AS [Plan MIN],
 		AVG([Task Duration]) OVER(PARTITION BY [Plan ID]) AS [Plan AVG],
 		MAX([Task Duration]) OVER(PARTITION BY [Plan ID]) AS [Plan MAX],
-		MIN([Task Duration]) OVER(PARTITION BY [Batch ID]) AS [Task MIN],
-		AVG([Task Duration]) OVER(PARTITION BY [Batch ID]) AS [Task AVG],
-		MAX([Task Duration]) OVER(PARTITION BY [Batch ID]) AS [Task MAX],
-		MIN([Instance Duration]) OVER(PARTITION BY [Process]) AS [Task MIN],
-		AVG([Instance Duration]) OVER(PARTITION BY [Process]) AS [Task AVG],
-		MAX([Instance Duration]) OVER(PARTITION BY [Process]) AS [Task MAX]
+		MIN([Task Duration]) OVER(PARTITION BY [Batch ID]) AS [Batch MIN],
+		AVG([Task Duration]) OVER(PARTITION BY [Batch ID]) AS [Batch AVG],
+		MAX([Task Duration]) OVER(PARTITION BY [Batch ID]) AS [Batch MAX],
+		MIN([Instance Duration]) OVER(PARTITION BY [Process]) AS [Process MIN],
+		AVG([Instance Duration]) OVER(PARTITION BY [Process]) AS [Process AVG],
+		MAX([Instance Duration]) OVER(PARTITION BY [Process]) AS [Process MAX]
 	FROM [timer]
 	ORDER BY [Instance ID] ASC
 END
