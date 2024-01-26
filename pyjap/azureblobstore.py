@@ -1,4 +1,4 @@
-from pyjap.Logger import LOG
+from pyjap.logger import LOG
 
 import pyjap.utilities as utl
 
