@@ -19,9 +19,6 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - re: Regular expressions.
 - datetime.datetime
 - pyjap.formatting.tabulate: For pretty text tables.
-- email_validator.validate_email
-- postcode_validator.uk.uk_postcode_validator.UKPostcode
-- phonenumbers: For validating phone numbers.
 
 #### Attributes:
 - validate_string (func): Validates a given string against a given regular expression, and can also verify a single datetime within the string using named regular expression groups.
