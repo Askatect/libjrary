@@ -1,7 +1,5 @@
 import logging
 
-import datetime
-
 def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search: bool = True):
     if case_insensitive_search:
         search_string = string.lower()
@@ -17,6 +15,7 @@ def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search
     return string[prefix_loc:suffix_loc]
 
 def validate_date(datestring: str, format: str = '%Y-%m-%d'):
+    import datetime
     try:
         date = datetime.datetime.strptime(datestring, format)
     except:
