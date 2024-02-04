@@ -1,4 +1,4 @@
-import logging
+from pyjap.logger import LOG
 
 def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search: bool = True):
     if case_insensitive_search:
@@ -19,7 +19,7 @@ def validate_date(datestring: str, format: str = '%Y-%m-%d'):
     try:
         date = datetime.datetime.strptime(datestring, format)
     except:
-        logging.info(f'String "{datestring}" is not in the format "{format}".')
+        LOG.info(f'String "{datestring}" is not in the format "{format}".')
         return None
     else:
         return date

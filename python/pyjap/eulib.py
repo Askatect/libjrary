@@ -44,7 +44,7 @@ from pyjap.logger import LOG
 
 from pyjap.formatting import dataframe_to_html
 from pyjap.formatting import tabulate
-from pyjap.email import EmailHandler
+from pyjap.emailer import EmailHandler
 from pyjap.sql import SQLHandler as SQL
 from pyjap.azureblobstore import AzureBlobHandler as AzureBlobs
 
@@ -1240,4 +1240,3 @@ def mdw_basic_query_builder(source: str, links: list[tuple[str]]) -> tuple[str, 
         sql += f"\n\tAND [{string.ascii_lowercase[i]}].[{'loadenddate' if i%3 == 1 else 'lastseendate'}] IS NULL"
     sql = loaddate + "\n\t\t) AS [T]([loaddate])\n\t) AS [loaddate],\n\t*\n" + sql
     return sql, legend
-
