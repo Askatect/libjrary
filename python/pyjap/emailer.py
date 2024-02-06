@@ -1,3 +1,25 @@
+"""
+# emailer.py
+
+Version: 1.0
+Authors: JRA
+Date: 2024-02-06
+
+Explanation:
+Contains the EmailHandler class for sending emails.
+
+Requirements:
+- pyjap.logger: Handles logging of processes.
+- keyring: For storage and retrieval of keys.
+
+A
+P
+R
+U
+T
+H
+"""
+
 from pyjap.logger import LOG
 
 import keyring as kr
