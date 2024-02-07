@@ -20,7 +20,7 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - datetime.datetime
 - pyjap.formatting.tabulate: For pretty text tables.
 
-#### Attributes:
+#### Artefacts:
 - validate_string (func): Validates a given string against a given regular expression, and can also verify a single datetime within the string using named regular expression groups.
 - validate_email (func): Validates an email.
 - validate_postcode (func): Validates UK postcodes.
@@ -44,9 +44,9 @@ from pyjap.logger import LOG
 
 from pyjap.formatting import dataframe_to_html
 from pyjap.formatting import tabulate
+from pyjap.sql import SQLHandler
 from pyjap.emailer import EmailHandler
-from pyjap.sql import SQLHandler as SQL
-from pyjap.azureblobstore import AzureBlobHandler as AzureBlobs
+from pyjap.azureblobstore import AzureBlobHandler
 
 import pandas as pd
 import uuid
@@ -55,11 +55,14 @@ from datetime import datetime
 
 def validate_string(string: str, target: str) -> tuple[str, None|str]:
     """
+    ### validate_string
+
     Version: 1.0
     Authors: JRA
     Date: 2024-01-30
 
-    #### Explanation: Validates a given string against a given regular expression, and can also verify a single datetime within the string using named regular expression groups. The name of the groups should be SQL string datetime format.
+    #### Explanation: 
+    Validates a given string against a given regular expression, and can also verify a single datetime within the string using named regular expression groups. The name of the groups should be SQL string datetime format.
 
     #### Requirements:
     - re: Regular expressions package.
@@ -117,6 +120,8 @@ def validate_string(string: str, target: str) -> tuple[str, None|str]:
 
 def validate_email(original_email: str, domain_check: bool = False) -> tuple[str, None|str]:
     """
+    ### validate_email
+
     Version: 1.0
     Authors: JRA
     Date: 2024-01-30
@@ -155,6 +160,8 @@ def validate_email(original_email: str, domain_check: bool = False) -> tuple[str
         
 def validate_postcode(original_postcode: str, country: str = "GB") -> tuple[str, None|str]:
     """
+    ### validate_postcode
+
     Version: 1.0
     Authors: JRA
     Date: 2024-01-30
@@ -197,6 +204,8 @@ def validate_postcode(original_postcode: str, country: str = "GB") -> tuple[str,
     
 def validate_phone(original_phone: str, country: str = "GB") -> tuple[str, None|str]:
     """
+    ### validate_phone
+
     Version: 1.0
     Authors: JRA
     Date: 2024-01-30
@@ -236,6 +245,8 @@ def validate_phone(original_phone: str, country: str = "GB") -> tuple[str, None|
     
 def standardiser(df: pd.DataFrame) -> pd.DataFrame:
     """
+    ### standardiser
+
     Version: 1.0
     Authors: JRA
     Date: 2024-01-30
@@ -276,6 +287,8 @@ def standardiser(df: pd.DataFrame) -> pd.DataFrame:
 
 class MDWJob:
     """
+    ## MDWJob
+
     Version: 1.0
     Authors: JRA
     Date: 2024-01-30
@@ -283,7 +296,7 @@ class MDWJob:
     #### Explanation:
     Handles jobs in an MDW.
 
-    #### Attributes:
+    #### Artefacts:
     - mdw (pyjap.sql.SQLHandler): Instance of SQL handler class that is where the job will be executed.
     - supjob_name (str): The name of the supjob being executed.
     - supjob_id (str): The identifier of the supjob being executed.
@@ -329,8 +342,10 @@ class MDWJob:
     #### History:
     - 1.0 JRA (2024-01-30): "Initial" version (there have been so many developments, but this is when I'm writing the docstrings).
     """
-    def __init__(self, supjob_name: str, mdw: SQL):
+    def __init__(self, supjob_name: str, mdw: SQLHandler):
         """
+        ### __init__
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -365,6 +380,8 @@ class MDWJob:
     
     def __str__(self):
         """
+        ### __str__
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -386,6 +403,8 @@ class MDWJob:
     
     def __del__(self):
         """
+        ### __del__
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -409,6 +428,8 @@ class MDWJob:
     
     def __validate_job_name(self, job_name: str) -> tuple[str, None|str]:
         """
+        ### __validate_job_name
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -437,6 +458,8 @@ class MDWJob:
     
     def supjob_start(self):
         """
+        ### supjob_start
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -462,6 +485,8 @@ class MDWJob:
 
     def supjob_end(self):
         """
+        ### supjob_end
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -488,6 +513,8 @@ class MDWJob:
 
     def job_start(self, job_name: str, filename: str = None) -> bool:
         """
+        ### job_start
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -544,6 +571,8 @@ class MDWJob:
         
     def job_end(self, status: str, error_message: str = None):
         """
+        ### job_end
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -579,12 +608,14 @@ class MDWJob:
     def ingest_csv_blobs_to_mdw(
         self,
         job_name: str, 
-        azure_storage: AzureBlobs, 
+        azure_storage: AzureBlobHandler, 
         container: str, 
         filename_formats: str|list[str],
         reject_bad_filename: bool = True
     ):
         """
+        ### ingest_csv_blobs_to_mdw
+
         Version: 1.2
         Authors: JRA
         Date: 2024-02-01
@@ -698,11 +729,13 @@ class MDWJob:
     def __stage_blob(
         self, 
         job_name: str, 
-        azure_storage: AzureBlobs,
+        azure_storage: AzureBlobHandler,
         container: str,
         filename: str
     ):
         """
+        ### __stage_blob
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -755,6 +788,8 @@ class MDWJob:
     
     def __structure_compliance(self, job_name: str, job_id: str = None) -> None|str:
         """
+        ### __structure_compliance
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -782,6 +817,8 @@ class MDWJob:
     
     def __add_artificial_key_file_id(self, job_name: str, job_id: str = None, filename: str = None):
         """
+        ### __add_artificial_key_file_id
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -808,6 +845,8 @@ class MDWJob:
     
     def __staging_extraction(self, job_name: str):
         """
+        ### __staging_extraction
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -832,6 +871,8 @@ class MDWJob:
     
     def cleaning_transforms(self, job_name: str):
         """
+        ### cleaning_transforms
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -966,12 +1007,14 @@ class MDWJob:
     def reset_azure_container(
         self,
         job_name: str,
-        azure_storage: AzureBlobs, 
+        azure_storage: AzureBlobHandler, 
         container: str, 
         folder: str,
         files: str|list[str] = None
     ):
         """
+        ### reset_azure_container
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -985,7 +1028,7 @@ class MDWJob:
         
         #### Parameters:
         - job_name (str): The name of the reset job.
-        - azure_storage (pyjap.email.EmailHandler): The Azure storage client.
+        - azure_storage (pyjap.azureblobstore.AzureBlobHandler): The Azure storage client.
         - container (str): The name of the container to work with in Azure storage.
         - folder (str): The name of the folder within the container to work with in Azure storage.
         - files (str|list[str]): The file(s) to be reset from one level below the given folder to that given folder. Defaults to all possible files.
@@ -1022,6 +1065,8 @@ class MDWJob:
         purge_arc: bool
     ):
         """
+        ### purge_by_recordsource
+
         Version: 1.0
         Authors: JRA
         Date: 2024-01-30
@@ -1068,6 +1113,8 @@ class MDWJob:
     
     def send_job_notification(self, recipients: str|list[str], log_file: str = None):
         """
+        ### send_job_notification
+
         Version: 1.1
         Authors: JRA
         Date: 2024-02-01
@@ -1087,10 +1134,7 @@ class MDWJob:
 
         #### Usage:
         >>> source_control.send_job_notification("info@euler.net", str(LOG))
-
-        #### Tasklist:
-        - Maybe write a bespoke pretty tabulator?
-
+        
         #### History:
         - 1.1 JRA (2024-02-01): Fixed a bug where supjob name is nullified before subject header is written.
         - 1.0 JRA (2024-01-30): Initial version.
@@ -1200,6 +1244,8 @@ def mdw_basic_query_builder(source: str, links: list[tuple[str]]) -> tuple[str, 
         AND [d].[lastseendate] IS NULL
         AND [e].[loadenddate] IS NULL
     '''
+    >>> mdw_basic_query_builder('source', [('contact', 'address')])[1]
+    {'a': '[hub].[contact]', 'b': '[sat].[legacyflagscontact]', 'c': '[link].[contactaddress]', 'd': '[hub].[address]', 'e', '[sat].[legacyflagsaddress]'}
 
     #### History:
     - 1.0 JRA (2024-02-01): Initial version.
