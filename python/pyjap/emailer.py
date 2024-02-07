@@ -5,21 +5,27 @@ Version: 1.0
 Authors: JRA
 Date: 2024-02-06
 
-Explanation:
+#### Explanation:
 Contains the EmailHandler class for sending emails.
 
-Requirements:
+#### Requirements:
 - pyjap.logger: Handles logging of processes.
 - keyring: For storage and retrieval of keys.
+- smtplib: To connect to SMTP.
+- os.path.basename: Retrieve basenames of any files to attach to emails.
+- email.mime.multipart.MIMEMultipart: For building emails.
+- email.mime.application.MIMEApplication: For building emails.
+- email.mime.test.MIMEText: For building emails.
 
-A
-P
-R
-U
-T
-H
+#### Artefacts:
+- EmailHandler (class): Handles emails.
+
+#### Usage:
+>>> from pyjap.emailer import EmailHandler
+
+#### History:
+- 1.0 JRA (2024-02-07): Initial version.
 """
-
 from pyjap.logger import LOG
 
 import keyring as kr
@@ -31,30 +37,45 @@ from email.mime.text import MIMEText
 
 class EmailHandler:
     """
-    EmailHandler - A utility class for sending emails.
+    ## EmailHandler
 
-    Args:
-        environment (str, optional): The environment key for retrieving connection details.
-        email (str, optional): The email address.
-        password (str, optional): The email account password.
-        smtp (str, optional): The SMTP server address.
-        port (int, optional): The SMTP server port.
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-02-07
 
-    Attributes:
-        params (dict): A dictionary containing the email connection parameters.
-        connected (bool): Flag indicating if a connection to the SMTP server is currently open.
-        connection: The smtplib.SMTP connection object.
+    #### Explanation: 
+    Handles emails.
 
-    Methods:
-        connect_to_smtp: Connects to the SMTP server.
-        send_email: Sends an email with optional HTML content.
-        close_connection: Closes the SMTP connection.
+    #### Artefacts:
+    - params (dict[str, str|int]): Contains SMTP connection parameters.
+    - connected (bool): True if connected to SMTP server.
+    - connection (smtplib.SMTP): The connection object.
+    - __init__ (func): Initialises the handler and collects parameters.
+    - __str__ (func): Returns the sending email address.
+    - connect_to_smtp (func): Attempts to connect to the SMTP server.
+    - send_email (func): Sends an email.
+    - close_connection (func): Closes connections to the SMTP server.
 
-    Usage:
-        handler = EmailHandler(environment='your_environment')
-        handler.connect_to_smtp()
-        handler.send_email(to='recipient@example.com', subject='Test Email', body_alt_text='This is a test email.')
-        handler.close_connection()
+    #### Returns:
+    - emailer.EmailHandler
+
+    #### Usage:
+    >>> notifier = EmailHandler(
+            email = 'notifications@domain.ext',
+            password = 'password',
+            smtp = 'smtp.domain.ext'
+            port = 25
+        )
+    >>> notifier.connect_to_smtp()
+    >>> notifier.send_email(
+            to = 'recipient@example.com', 
+            subject = 'Notification', 
+            body_alt_text = 'Get notified.'
+        )
+    >>> notifier.close_connection()
+
+    #### History: 
+    - 1.0 JRA (2024-02-07): Initial version.
     """
     def __init__(
             self,
@@ -65,14 +86,32 @@ class EmailHandler:
             port: int = None
     ):
         """
-        Initializes the EmailHandler instance.
+        ### __init__
 
-        Args:
-            environment (str, optional): The environment key for retrieving connection details.
-            email (str, optional): The email address.
-            password (str, optional): The email account password.
-            smtp (str, optional): The SMTP server address.
-            port (int, optional): The SMTP server port.
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-02-07
+
+        #### Explanation:
+        Initialises the handler and collects parameters.
+
+        #### Parameters:
+        - environment (str): The environment to collect keyring keys from. Defaults to None.
+        - email (str): The sending email address (supercedes environment value). Defaults to None.
+        - password (str): The password to use the email address (supercedes environment value). Defaults to None.
+        - smtp (str): The name of the SMPT to use (supercedes environment value). Defaults to None.
+        - port (int): The port to use (supercedes environment value): Defaults to None.
+
+        #### Usage:
+        >>> notifier = EmailHandler(
+                email = 'notifications@domain.ext',
+                password = 'password',
+                smtp = 'smtp.domain.ext'
+                port = 25
+            )
+
+        #### History:
+        - 1.0 JRA (2024-02-07): Initial version.
         """
         self.params = {
             'email': email,
@@ -91,12 +130,45 @@ class EmailHandler:
         self.connected = False
         return
     
-    def __str__(self):
+    def __str__(self) -> str:
+        """
+        ### __str__
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-02-07
+
+        #### Explanation:
+        Returns the sending email address.
+
+        #### Returns:
+        - (str)
+
+        #### Usage:
+        >>> print(notifier)
+        'notifications@domain.ext'
+
+        #### History:
+        - 1.0 JRA (2024-02-07): Initial version.
+        """
         return self.params['email']
     
     def connect_to_smtp(self):
         """
-        Connects to the SMTP server.
+        ### connect_to_smtp
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-02-07
+
+        #### Explanation:
+        Attempts to connect to the SMTP server.
+
+        #### Usage:
+        >>> notifier.connect_to_smtp()
+
+        #### History:
+        - 1.0 JRA (2024-02-07): Initial version.
         """
         if self.connected:
             LOG.error("Connection already open.")
@@ -113,26 +185,44 @@ class EmailHandler:
             LOG.info(f"Successfully connected to {self.params['smtp']}.")
         return
     
-    def send_email(self, 
-                   to: list|str, 
-                   cc: list|str = [], 
-                   bcc: list|str = [], 
-                   subject: str = "",
-                   body_html: str = None,
-                   body_alt_text: str = None,
-                   attachments: list[str]|str = []
+    def send_email(
+        self,
+        subject: str,
+        to: str|list[str], 
+        cc: str|list[str] = [], 
+        bcc: str|list[str] = [], 
+        body_html: str = None,
+        body_alt_text: str = None,
+        attachments: str|list[str] = []
     ):
         """
+        ### send_email
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-02-07
+
+        #### Explanation:
         Sends an email.
 
-        Args:
-            to (list|str): The recipient(s) of the email.
-            cc (list|str, optional): The carbon copy recipient(s) of the email.
-            bcc (list|str, optional): The blind carbon copy recipient(s) of the email.
-            subject (str): The subject of the email.
-            body_html (str, optional): The HTML body of the email.
-            body_alt_text (str, optional): The alternative plain text body of the email.
-            attachments: (list[str]|str): File address(es) to add as email attachments.
+        #### Parameters:
+        - subject (str): The subject of the email.
+        - to (str|list[str]): The recipient(s) of the email.
+        - cc (str|list[str]): The carbon copy recipient(s) of the email. Defaults to none.
+        - bcc (str|list[str]): The blind carbon copy recipient(s) of the email. Defaults to none.
+        - body_html (str): The HTML that forms the body of the email.
+        - body_alt_text (str): The text that forms the body of the email if the HTML fails or is missing.
+        - attachments (str|list[str]): The filepath(s) of attachments.
+
+        #### Usage:
+        >>> notifier.send_email(
+                to = 'recipient@example.com', 
+                subject = 'Notification', 
+                body_alt_text = 'Get notified.'
+            )
+
+        #### History:
+        - 1.0 JRA (2024-02-07): Initial version.
         """
         if type(to) is str:
             to = [to]
@@ -146,7 +236,7 @@ class EmailHandler:
                 self.connect_to_smtp()
             except:
                 LOG.error(f"Could not connect to {self}. {error}.")
-                return None
+                return
             
         LOG.info(f"Attempting to build email from {self.params['email']}...")
         message_alt = MIMEMultipart('alternative')
@@ -191,7 +281,20 @@ class EmailHandler:
             
     def close_connection(self):
         """
-        Closes the SMTP connection.
+        ### close_connection
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-02-07
+
+        #### Explanation:
+        Closes connections to the SMTP server.
+
+        #### Usage:
+        >>> notifier.close_connection()
+
+        #### History:
+        - 1.0 JRA (2024-02-07): Initial version.
         """
         if not self.connected:
             LOG.error("No open connection.")

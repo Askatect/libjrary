@@ -1,7 +1,13 @@
+"""
+Explanation:
+Various formatting tools. This will be removed as soon as I get the chance!
+
+Tasklist:
+- Write a working version of sqlformatter!
+- Move the working stuff into pyjap.utilities.
+"""
+
 from pyjap.logger import LOG
-import sys
-LOG.print_to_console(strm = sys.stdout)
-LOG.info("Test.")
 
 import pyjap.utilities as utilities
 
