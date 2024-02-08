@@ -1,3 +1,9 @@
+"""
+Tasklist:
+- Write docstrings!
+- Add a method for LOG to use the root logger (see "Install .whl from GitHub" conversation with ChatGPT).
+"""
+
 import logging
 import __main__
 import os

@@ -10,7 +10,6 @@ Contains the EmailHandler class for sending emails.
 
 #### Requirements:
 - pyjap.logger: Handles logging of processes.
-- keyring: For storage and retrieval of keys.
 - smtplib: To connect to SMTP.
 - os.path.basename: Retrieve basenames of any files to attach to emails.
 - email.mime.multipart.MIMEMultipart: For building emails.
@@ -28,7 +27,6 @@ Contains the EmailHandler class for sending emails.
 """
 from pyjap.logger import LOG
 
-import keyring as kr
 import smtplib
 from os.path import basename
 from email.mime.multipart import MIMEMultipart
@@ -95,6 +93,9 @@ class EmailHandler:
         #### Explanation:
         Initialises the handler and collects parameters.
 
+        #### Requirements:
+        - keyring: For storage and retrieval of keys.
+
         #### Parameters:
         - environment (str): The environment to collect keyring keys from. Defaults to None.
         - email (str): The sending email address (supercedes environment value). Defaults to None.
@@ -124,6 +125,7 @@ class EmailHandler:
             return
         elif environment is not None:
             for param in self.params.keys():
+                import keyring as kr
                 value = kr.get_password(environment, param)
                 if value is not None:
                     self.params[param] = value
