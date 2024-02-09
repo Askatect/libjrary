@@ -1,5 +1,5 @@
-v: 0.1.0
-Date: 2024-02-09 19:58:47
+v: 0.1.1
+Date: 2024-02-09 21:09:07
 
 Explanation:
 The libjrary features several generic tools for Python and SQL that I find useful.
@@ -50,11 +50,12 @@ Attributes:
 - __init__.py
 
 Usage:
->>> pip install <path>/pyjap-0.1.0-py3-none-any.whl
+>>> pip install <path>/pyjap-0.1.1-py3-none-any.whl
 or
 >>> powershell -File <path>\librare_pyjap_to_wheel.ps1
 
 History:
+- 0.1.1 JRA (2024-02-09 21:09:07): Removed test code from wheel.
 - 0.1.0 JRA (2024-02-09 19:58:47): Lots more documentation and retry_wait for waking paused databases.
 - 0.0.7 JRA (2024-02-04): A new fix for Azure Automation.
 - 0.0.6 JRA (2024-02-04): More adjustments to distribution to appease Azure Automation.
@@ -63,3 +64,4 @@ History:
 - 0.0.3 JRA (2024-02-04): Further edits to logger for Azure Automation.
 - 0.0.2 JRA (2024-02-03): Edits to logger to improve compatibility with Azure Automation.
 - 0.0.1 JRA (2024-02-03): First wheel.
+
