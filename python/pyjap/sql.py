@@ -684,7 +684,3 @@ class SQLHandler:
         else:
             LOG.info(f"Successfully created table {object_name} at {str(self)}.")
             return 1
-        
-db_personal = SQLHandler(connection_string = 'Driver={ODBC Driver 17 for SQL Server};Server=tcp:srvr-personal.database.windows.net,1433;Database=db-personal;Uid=jra;Pwd=Ch3rryB@k3w311;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;', retry_wait = 120)
-df = db_personal.select_to_dataframe("SELECT * FROM [misc].[v_madas]")
-print(df)
