@@ -1,7 +1,7 @@
 """
 # sql.py
 
-Version: 1.0
+Version: 1.1
 Authors: JRA
 Date: 2024-02-08
 
@@ -21,10 +21,8 @@ Artefacts:
 Usage:
 >>> from pyjap.sql import SQLHandler
 
-Tasklist:
-- Add retry for unpausing databases.
-
-History: 
+History:
+- 1.1 JRA (2024-02-09): Added retry_wait.
 - 1.0 JRA (2024-02-08): Initial version.
 """
 from pyjap.logger import LOG
@@ -34,48 +32,13 @@ from pyjap.utilities import extract_param
 import pandas as pd
 import keyring as kr
 import pyodbc
+from time import sleep
 
 class SQLHandler:
     """
-    SQLHandler - A utility class for handling SQL Server connections and operations.
-
-    Args:
-        connection_string (str, optional): The full SQL Server connection string.
-        environment (str, optional): The environment key for retrieving connection details.
-        driver (str, optional): The ODBC driver name. Default is '{SQL Server}'.
-        server (str, optional): The SQL Server address.
-        port (int, optional): The port number for the SQL Server connection.
-        database (str, optional): The name of the database.
-        uid (str, optional): The user ID for authentication.
-        pwd (str, optional): The password for authentication.
-        encrypt (str, optional): Flag indicating whether to use encryption ('yes' or 'no'). Default is 'yes'.
-        trust_server_certificate (str, optional): Flag indicating trust for the server certificate ('yes' or 'no'). Default is 'no'.
-        connection_timeout (int, optional): Connection timeout in seconds. Default is 30.
-
-    Attributes:
-        connected (bool): Flag indicating if a connection is currently open.
-        conn: The pyodbc connection object.
-        cursor: The pyodbc cursor object.
-
-    Methods:
-        connect_to_mssql: Establishes a connection to the SQL Server.
-        rollback: Rolls back the current transaction.
-        commit: Commits the current transaction.
-        close_connection: Closes the open connection.
-        select_to_dataframe: Executes a SELECT query and returns the result as a DataFrame.
-        execute_query: Executes a SQL query.
-        insert: Inserts data into the specified table.
-        create_table: Creates a new table in the database.
-
-    Usage:
-        handler = SQLHandler(connection_string='your_connection_string')
-        handler.connect_to_mssql()
-        handler.select_to_dataframe('SELECT * FROM your_table')
-        handler.close_connection()
-    
     ## SQLHandler
         
-    Version: 1.0
+    Version: 1.1
     Authors: JRA
     Date: 2024-02-09
 
@@ -118,6 +81,7 @@ class SQLHandler:
     ['column']
 
     History:
+    - 1.1 JRA (2024-02-09): Added retry_wait.
     - 1.0 JRA (2024-02-09): Initial version.
     """
     def __init__(
@@ -132,27 +96,13 @@ class SQLHandler:
         pwd: str = None,
         encrypt: str = 'yes',
         trust_server_certificate: str = 'no',
-        connection_timeout: int = 30
+        connection_timeout: int = 30,
+        retry_wait: int = None
     ):
         """
-        Initializes the SQLHandler instance.
-
-        Args:
-            connection_string (str, optional): The full SQL Server connection string.
-            environment (str, optional): The environment key for retrieving connection details.
-            driver (str, optional): The ODBC driver name. Default is '{SQL Server}'.
-            server (str, optional): The SQL Server address.
-            port (int, optional): The port number for the SQL Server connection.
-            database (str, optional): The name of the database.
-            uid (str, optional): The user ID for authentication.
-            pwd (str, optional): The password for authentication.
-            encrypt (str, optional): Flag indicating whether to use encryption ('yes' or 'no'). Default is 'yes'.
-            trust_server_certificate (str, optional): Flag indicating trust for the server certificate ('yes' or 'no'). Default is 'no'.
-            connection_timeout (int, optional): Connection timeout in seconds. Default is 30.
-
         ### __init__
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
         Date: 2024-02-09
 
@@ -170,11 +120,13 @@ class SQLHandler:
         - pwd (str): The user password.
         - encrypt (str): If 'yes', encryption is used.
         - connection_timeout (int): Timeout limit to use during connections.
+        - retry_wait (int): If populated, connections to the database are retried once on failure after this number of seconds. Defaults to no retry.
 
         Usage:
         >>> executor = SQLHandler(environment = 'dev')
 
         History:
+        - 1.1 JRA (2024-02-09): Added retry_wait.
         - 1.0 JRA (2024-02-09): Initial version.
         """
         if connection_string is None and environment is None and (server is None or database is None):
@@ -194,6 +146,8 @@ class SQLHandler:
         }
         self.connected = False
         self.conn = None
+        self.description = ()
+        self.retry_wait = retry_wait
         if self.__connection_string is not None:
             LOG.info("Reading parameters from connection string.")
             for param in [param for param, value in self.__params.items() if value is None]:
@@ -211,8 +165,6 @@ class SQLHandler:
             self.__connection_string = ""
             for param, value in [(param, value) for param, value in self.__params.items() if value is not None]:
                 self.__connection_string += f"{param}={value};"
-
-        self.description = ()
         return
     
     def __str__(self) -> str:
@@ -302,11 +254,11 @@ class SQLHandler:
         schema = '' if schema is None or schema == '' else '[' + schema + '].'
         return f"{schema}[{table}]"
     
-    def connect_to_mssql(self, auto_commit: bool = False) -> pyodbc.Cursor|None:
+    def connect_to_mssql(self, auto_commit: bool = False, retry_wait: int = None) -> pyodbc.Cursor|None:
         """
         ### connect_to_mssql
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
         Date: 2024-02-09
 
@@ -315,6 +267,7 @@ class SQLHandler:
 
         Parameters:
         - auto_commit (bool): If true, transactions are committed by default. Default is false.
+        - retry_wait (int): If populated, connections to the database are retried once on failure after this number of seconds. Defaults to no retry.
 
         Returns:
         - self.cursor (pyodbc.Cursor)
@@ -324,6 +277,7 @@ class SQLHandler:
         <executor.cursor>
 
         History:
+        - 1.1 JRA (2024-02-09): Added retry_wait.
         - 1.0 JRA (2024-02-09): Initial version.
         """
         if self.connected:
@@ -333,12 +287,17 @@ class SQLHandler:
         try:
             self.conn = pyodbc.connect(self.__connection_string, autocommit = auto_commit)
             self.cursor = self.conn.cursor()
-        except pyodbc.InterfaceError as error:
-            LOG.error(f'Failed to connect to {self}. {error}. Available drivers: {pyodbc.drivers()}.')
-            raise
-        except Exception as error:
-            LOG.error(f'Failed to connect to {self}. {error}')
-            raise
+        except:
+            try:
+                sleep(retry_wait or self.retry_wait)
+                self.conn = pyodbc.connect(self.__connection_string, autocommit = auto_commit)
+                self.cursor = self.conn.cursor()
+            except pyodbc.InterfaceError as error:
+                LOG.error(f'Failed to connect to {self}. {error}. Available drivers: {pyodbc.drivers()}.')
+                raise
+            except Exception as error:
+                LOG.error(f'Failed to connect to {self}. {error}')
+                raise
         else:
             self.connected = True
             LOG.info(f"Successfully connected to {str(self)}.")
@@ -725,3 +684,7 @@ class SQLHandler:
         else:
             LOG.info(f"Successfully created table {object_name} at {str(self)}.")
             return 1
+        
+db_personal = SQLHandler(connection_string = 'Driver={ODBC Driver 17 for SQL Server};Server=tcp:srvr-personal.database.windows.net,1433;Database=db-personal;Uid=jra;Pwd=Ch3rryB@k3w311;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;', retry_wait = 120)
+df = db_personal.select_to_dataframe("SELECT * FROM [misc].[v_madas]")
+print(df)

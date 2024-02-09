@@ -24,7 +24,7 @@ elif new_major == old_major:
 print("New version accepted.")
 
 docstring = {}
-# docstring['Version'] = new_version
+docstring['v'] = new_version
 # docstring['Author'] = 'JRA'
 docstring['Date'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 docstring['Explanation'] = 'The libjrary features several generic tools for Python and SQL that I find useful.'
@@ -44,7 +44,7 @@ with open("README.md", "r") as f:
 
 with open("README.md", "w") as f:
     for key, value in docstring.items():
-        sep = ' ' if key in ('Version', 'Author', 'Date') else '\n'
+        sep = ' ' if key in ('v', 'Author', 'Date') else '\n'
         f.write("{}{}:{}{}\n".format((sep if sep == '\n' else ''), key, sep, value))
 
 with open("README.md", "r") as f:

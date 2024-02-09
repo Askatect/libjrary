@@ -1,10 +1,12 @@
-Date: 2024-02-04
+v: 0.1.0
+Date: 2024-02-09 19:58:47
 
 Explanation:
 The libjrary features several generic tools for Python and SQL that I find useful.
 
 Requirements:
 - azure-core==1.30.0
+- azure-functions==1.18.0
 - azure-storage-blob==12.19.0
 - certifi==2024.2.2
 - cffi==1.16.0
@@ -37,12 +39,23 @@ Requirements:
 - wheel==0.42.0
 - zipp==3.17.0
 
+Attributes:
+- azureblobstore.py
+- coordinategeometry.py
+- emailer.py
+- formatting.py
+- logger.py
+- sql.py
+- utilities.py
+- __init__.py
+
 Usage:
->>> pip install <path>/pyjap-0.0.7-py3-none-any.whl
+>>> pip install <path>/pyjap-0.1.0-py3-none-any.whl
 or
 >>> powershell -File <path>\librare_pyjap_to_wheel.ps1
 
 History:
+- 0.1.0 JRA (2024-02-09 19:58:47): Lots more documentation and retry_wait for waking paused databases.
 - 0.0.7 JRA (2024-02-04): A new fix for Azure Automation.
 - 0.0.6 JRA (2024-02-04): More adjustments to distribution to appease Azure Automation.
 - 0.0.5 JRA (2024-02-04): Attempting new build to bugfix "more than one distribution versions".
