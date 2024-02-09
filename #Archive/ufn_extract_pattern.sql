@@ -23,6 +23,9 @@ Returns:
 Usage:
 [jra].[ufn_extract_pattern]('Execute Order 66', DEFAULT, DEFAULT)
 >>> 'EO66'
+
+History:
+- 1.1 JRA (2024-01-06): Added @pattern_length.
 */
 AS
 BEGIN

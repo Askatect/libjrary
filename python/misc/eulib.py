@@ -1,9 +1,9 @@
 """
 # eulib.py
 
-Version: 1.1
+Version: 1.1.1
 Authors: JRA
-Date: 2024-02-02
+Date: 2024-02-08
 
 #### Explanation:
 Library of functions and classes that might be useful for Euler DataOps and Analytics.
@@ -37,8 +37,9 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - Is standardiser necessary?
 
 #### History:
-- 1.1 JRA (2024-02-02): Replaced tabulate.tabulate with pyjap.formatting.tabulate. Added mdw_basic_query_builder.
-- 1.0 JRA (2024-01-30): Initial version.
+- 1.1.1 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text in send_job_notification in MDWJob.
+- 1.1.0 JRA (2024-02-02): Replaced tabulate.tabulate with pyjap.formatting.tabulate. Added mdw_basic_query_builder.
+- 1.0.0 JRA (2024-01-30): Initial version.
 """
 from pyjap.logger import LOG
 
@@ -289,9 +290,9 @@ class MDWJob:
     """
     ## MDWJob
 
-    Version: 1.0
+    Version: 1.1
     Authors: JRA
-    Date: 2024-01-30
+    Date: 2024-02-08
 
     #### Explanation:
     Handles jobs in an MDW.
@@ -340,6 +341,7 @@ class MDWJob:
     - Could be better to force start a new job when a new job name is given. Then it wouldn't be necessary to check job status at the start of each private method. It could then be possible to call private methods without starting (and without not ending) a job.
 
     #### History:
+    - 1.1 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text in send_job_notification.
     - 1.0 JRA (2024-01-30): "Initial" version (there have been so many developments, but this is when I'm writing the docstrings).
     """
     def __init__(self, supjob_name: str, mdw: SQLHandler):
@@ -1115,9 +1117,9 @@ class MDWJob:
         """
         ### send_job_notification
 
-        Version: 1.1
+        Version: 1.2
         Authors: JRA
-        Date: 2024-02-01
+        Date: 2024-02-08
 
         #### Explanation:
         Ends the job and collects log information from the MDW to send as an email.
@@ -1136,6 +1138,7 @@ class MDWJob:
         >>> source_control.send_job_notification("info@euler.net", str(LOG))
         
         #### History:
+        - 1.2 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text.
         - 1.1 JRA (2024-02-01): Fixed a bug where supjob name is nullified before subject header is written.
         - 1.0 JRA (2024-01-30): Initial version.
         """
@@ -1183,12 +1186,14 @@ ORDER BY [jd].[startdate] ASC
             }
         )
 
+        body_alt_text = tabulate([job_log.columns.to_list()] + job_log.values.tolist())
+
         notifier = EmailHandler(environment = 'notifications')
         notifier.send_email(
             to = recipients,
             subject = subject,
             body_html = body_html,
-            body_alt_text = tabulate(job_log, headers = 'keys', tablefmt = 'psql'),
+            body_alt_text = body_alt_text,
             attachments = log_file
         )
         return

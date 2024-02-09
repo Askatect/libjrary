@@ -860,7 +860,7 @@ def dataframe_to_html(
 
 def tabulate(table: list[list[str]], header: int = 1, null: str = '') -> str:
     """
-    ### pyjap.utilities.tabulate
+    ### tabulate
 
     Version: 1.0
     Authors: JRA
@@ -909,6 +909,7 @@ def tabulate(table: list[list[str]], header: int = 1, null: str = '') -> str:
     - 1.0 JRA (2024-02-02): Initial version.
     """
     widths = []
+    r = len(table) - 1
     for r in range(len(table)):
         widths = widths + [0]*(max(0, len(table[r]) - len(widths)))
         for c in range(len(table[r])):
