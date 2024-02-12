@@ -1,9 +1,9 @@
 """
 # emailer.py
 
-Version: 1.0
+Version: 1.1
 Authors: JRA
-Date: 2024-02-06
+Date: 2024-02-12
 
 #### Explanation:
 Contains the EmailHandler class for sending emails.
@@ -23,6 +23,7 @@ Contains the EmailHandler class for sending emails.
 >>> from pyjap.emailer import EmailHandler
 
 #### History:
+- 1.1 JRA (2024-02-12): Revamped error handling and added __del__ to EmailHandler.
 - 1.0 JRA (2024-02-07): Initial version.
 """
 from pyjap.logger import LOG
@@ -32,14 +33,15 @@ from os.path import basename
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
+from socket import gaierror
 
 class EmailHandler:
     """
     ## EmailHandler
 
-    Version: 1.0
+    Version: 1.1
     Authors: JRA
-    Date: 2024-02-07
+    Date: 2024-02-12
 
     #### Explanation: 
     Handles emails.
@@ -72,7 +74,8 @@ class EmailHandler:
         )
     >>> notifier.close_connection()
 
-    #### History: 
+    #### History:
+    - 1.1 JRA (2024-02-12): Revamped error handling and added __del__.
     - 1.0 JRA (2024-02-07): Initial version.
     """
     def __init__(
@@ -86,9 +89,9 @@ class EmailHandler:
         """
         ### __init__
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-02-07
+        Date: 2024-02-12
 
         #### Explanation:
         Initialises the handler and collects parameters.
@@ -112,6 +115,7 @@ class EmailHandler:
             )
 
         #### History:
+        - 1.1 JRA (2024-02-12): Exception is raised for insufficient input.
         - 1.0 JRA (2024-02-07): Initial version.
         """
         self.params = {
@@ -121,8 +125,9 @@ class EmailHandler:
             'port': port
         }
         if environment is None and None in [email, password, smtp]:
-            LOG.warning("An environment or connection parameters must be specified.")
-            return
+            error = "Sufficient connection parameters or an environment must be supplied."
+            LOG.warning(error)
+            raise ValueError(error)
         elif environment is not None:
             for param in self.params.keys():
                 import keyring as kr
@@ -155,13 +160,33 @@ class EmailHandler:
         """
         return self.params['email']
     
+    def __del__(self):
+        """
+        ### __del__
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-02-12
+
+        #### Explanation:
+        Closes the SMTP connection before deleting the class instance.
+
+        #### Usage:
+        >>> del notifier
+
+        #### History:
+        - 1.0 JRA (2024-02-12): Initial version.
+        """
+        self.close_connection()
+        return
+    
     def connect_to_smtp(self):
         """
         ### connect_to_smtp
 
-        Version: 1.0
+        Version: 2.0
         Authors: JRA
-        Date: 2024-02-07
+        Date: 2024-02-12
 
         #### Explanation:
         Attempts to connect to the SMTP server.
@@ -170,22 +195,36 @@ class EmailHandler:
         >>> notifier.connect_to_smtp()
 
         #### History:
+        - 2.0 JRA (2024-02-12): Revamped error handling.
         - 1.0 JRA (2024-02-07): Initial version.
         """
         if self.connected:
             LOG.error("Connection already open.")
             return
-        LOG.info(f"Attempting to connect to {self}.")
+        
+        LOG.info(f"Attempting to connect to {self.params['email']} on {self.params['smtp']}...")
         try:
             self.connection = smtplib.SMTP(self.params['smtp'], self.params['port'])
-            self.connection.starttls()
+        except gaierror as e:
+            LOG.error(f"Could not connect to {self.params['smtp']}{' port' + str(self.params['port']) if self.params['port'] is not None else ''}. {e}")
+            raise
+        except Exception as e:
+            LOG.critical(f"Unexpected {type(e)} error occurred whilst connecting to {self.params['smtp']} port {self.params['port']}. {e}")
+            raise
+        self.connection.starttls()
+
+        try:
             self.connection.login(user = self.params['email'], password = self.params['password'])
-        except Exception as error:
-            LOG.error(f"Failed to connect to {self.params['smtp']}. {error}.")
+        except smtplib.SMTPAuthenticationError as e:
+            LOG.error(f"Failed to login to {self.params['email']}. {e}.")
+            raise
+        except Exception as e:
+            LOG.critical(f"Unexpected {type(e)} error occurred whilst logging in to {self.params['email']}. {e}")
+            raise
         else:
             self.connected = True
-            LOG.info(f"Successfully connected to {self.params['smtp']}.")
-        return
+            LOG.info(f"Successfully connected to {self.params['email']} on {self.params['smtp']}.")
+            return
     
     def send_email(
         self,
@@ -200,9 +239,9 @@ class EmailHandler:
         """
         ### send_email
 
-        Version: 1.0
+        Version: 2.0
         Authors: JRA
-        Date: 2024-02-07
+        Date: 2024-02-12
 
         #### Explanation:
         Sends an email.
@@ -224,6 +263,7 @@ class EmailHandler:
             )
 
         #### History:
+        - 2.0 JRA (2024-02-12): Revamped error handling.
         - 1.0 JRA (2024-02-07): Initial version.
         """
         if type(to) is str:
@@ -232,35 +272,36 @@ class EmailHandler:
             cc = [cc]        
         if type(bcc) is str:
             bcc = [bcc]
+        if type(attachments) is str:
+            attachments = [attachments]
 
         if not self.connected:
-            try:
-                self.connect_to_smtp()
-            except:
-                LOG.error(f"Could not connect to {self}. {error}.")
-                return
+            self.connect_to_smtp()
             
         LOG.info(f"Attempting to build email from {self.params['email']}...")
-        message_alt = MIMEMultipart('alternative')
-                
+        message_alt = MIMEMultipart('alternative')                
         message_alt.attach(MIMEText(body_alt_text, "plain"))
         if body_html is not None:
             message_alt.attach(MIMEText(body_html, "html"))
         
-        if type(attachments) is str:
-            attachments = [attachments]
         if len(attachments) > 0:
             message_mix = MIMEMultipart('mixed')
             message_mix.attach(message_alt)
             for file in attachments:
                 try:
+                    file_basename = basename(file)
                     with open(file, 'rb') as file_reader:
-                        part = MIMEApplication(file_reader.read(), name = basename(file))
-                    part['Content-Disposition'] = f'attachment; filename={basename(file)}'
+                        part = MIMEApplication(file_reader.read(), name = file_basename)
+                    part['Content-Disposition'] = f'attachment; filename={file_basename}'
                     message_mix.attach(part)
+                except FileNotFoundError as e:
+                    LOG.error(f'Could not find "{file_basename}". {e}')
+                    raise
                 except Exception as error:
-                    LOG.error(f'Could not attach file "{file}". {error}.')
-                    return
+                    LOG.critical(f'Unexpected {type(e)} error occurred whilst attaching "{file_basename}". {e}')
+                    raise
+                else:
+                    LOG.info(f'Attached file {file_basename} successfully.')
         else:
             message_mix = message_alt
         
@@ -268,26 +309,25 @@ class EmailHandler:
         message_mix["From"] = self.params["email"]
         message_mix["To"] = ",".join(to)
         message_mix["Cc"] = ",".join(cc)
-
         LOG.info("Email built!")
 
         try:
             LOG.info(f"Sending email from {self}...")
             self.connection.sendmail(message_mix["From"], to + cc + bcc, message_mix.as_string())
-        except Exception as error:
-            LOG.error(f"Failed to send email. {error}.")
+        except Exception as e:
+            LOG.error(f"Unexpected {type(e)} error occurred when attempting to send email. {error}.")
+            raise
         else:
             LOG.info("Email sent successfully!")
-        self.close_connection()
-        return
+            return
             
     def close_connection(self):
         """
         ### close_connection
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-02-07
+        Date: 2024-02-12
 
         #### Explanation:
         Closes connections to the SMTP server.
@@ -296,16 +336,18 @@ class EmailHandler:
         >>> notifier.close_connection()
 
         #### History:
+        - 1.1 JRA (2024-02-12): Generic exceptions are now reraised.
         - 1.0 JRA (2024-02-07): Initial version.
         """
         if not self.connected:
-            LOG.error("No open connection.")
+            LOG.warning("No open connection to be closed.")
             return
         try:
             self.connection.quit()
-        except:
-            LOG.error("Failed to close connection.")
+        except Exception as e:
+            LOG.error(f"Unexpected {type(e)} error occurred when closing connection to {self}. {e}")
+            raise
         else:
             self.connected = False
             LOG.info(f"Closed connection to {self}.")
-        return
+            return

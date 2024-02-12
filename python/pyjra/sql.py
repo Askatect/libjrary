@@ -1,27 +1,29 @@
 """
 # sql.py
 
-Version: 1.1
+Version: 2.0
 Authors: JRA
-Date: 2024-02-08
+Date: 2024-02-12
 
-Explanation:
+#### Explanation:
 Contains the sqlhandler class for operating on SQL Server databases.
 
-Requirements:
+#### Requirements:
 - pyjap.logger.LOG: For logging.
 - pyjap.utilities.extract_param: For reading parameter values from connection strings.
 - pandas: For DataFrames.
 - keyring: For storing and retrieving of keys.
 - pyodbc: To interface with the database.
+- time.sleep: Pause between connection retries.
 
-Artefacts:
+#### Artefacts:
 - SQLHandler (class): Operates on SQL Server databases.
 
-Usage:
+#### Usage:
 >>> from pyjap.sql import SQLHandler
 
-History:
+#### History:
+- 2.0 JRA (2024-02-12): Revamped error handling.
 - 1.1 JRA (2024-02-09): Added retry_wait.
 - 1.0 JRA (2024-02-08): Initial version.
 """
@@ -38,14 +40,14 @@ class SQLHandler:
     """
     ## SQLHandler
         
-    Version: 1.1
+    Version: 2.0
     Authors: JRA
-    Date: 2024-02-09
+    Date: 2024-02-12
 
-    Explanation:
+    #### Explanation:
     Operates on SQL Server databases.
 
-    Artefacts:
+    #### Artefacts:
     - __connection_string (str): Connection string.
     - __params (dict): Connection parameters.
     - connected (bool): If true, indicates a successful active connection.
@@ -73,14 +75,25 @@ class SQLHandler:
     - insert (func): Inserts data into a specified table.
     - create_table (func): Creates a table in the database.
 
-    Usage:
+    #### Usage:
     >>> executor = SQLHandler(environment = 'dev')
     >>> executor.execute_query("SELECT 'value' AS [column]")
     [('value')]
     >>> executor.query_columns()
     ['column']
 
-    History:
+    #### Tasklist:
+    - Create a table class?
+        - With columns and column metadata.
+        - Enforceable sizes (make sure all rows are the same length).
+        - Mitigates pandas requirement.
+        - Could be used across pyjap?
+        - Give it the pretty tabulator as a method.
+        - Change the dataframe_to_html to use this class.
+    - Add a execute query method that returns a dictionary representing the first row. Would be useful for a list of values or parameters, such as the weekly summary for func-personal.
+
+    #### History:
+    - 2.0 JRA (2024-02-12): Revamped error handling.
     - 1.1 JRA (2024-02-09): Added retry_wait.
     - 1.0 JRA (2024-02-09): Initial version.
     """
@@ -106,10 +119,10 @@ class SQLHandler:
         Authors: JRA
         Date: 2024-02-09
 
-        Explanation:
+        #### Explanation:
         Initialises the handler.
 
-        Parameters:
+        #### Parameters:
         - connection_string (str): The connection string to use. Defaults to environment or other parameters if not supplied.
         - environment (str): The environment to get keyring keys from. Defaults to other parameters if not supplied.
         - driver (str): The ODBC driver to use. No default driver.
@@ -122,16 +135,17 @@ class SQLHandler:
         - connection_timeout (int): Timeout limit to use during connections.
         - retry_wait (int): If populated, connections to the database are retried once on failure after this number of seconds. Defaults to no retry.
 
-        Usage:
+        #### Usage:
         >>> executor = SQLHandler(environment = 'dev')
 
-        History:
+        #### History:
         - 1.1 JRA (2024-02-09): Added retry_wait.
         - 1.0 JRA (2024-02-09): Initial version.
         """
         if connection_string is None and environment is None and (server is None or database is None):
-            LOG.critical("Not enough information given to start SQLHandler.")
-            return
+            error = "Not enough information given to start SQLHandler."
+            LOG.critical(error)
+            raise ValueError(error)
         self.__connection_string = connection_string
         self.__params = {
             'driver': driver,
@@ -175,17 +189,17 @@ class SQLHandler:
         Authors: JRA
         Date: 2024-02-09
 
-        Explanation:
+        #### Explanation:
         Returns the server and database of the handler.
 
-        Returns:
+        #### Returns:
         - (str)
 
-        Usage:
+        #### Usage:
         >>> print(executor)
         "[server].[database]"
 
-        History:
+        #### History:
         - 1.0 JRA (2024-02-09): Initial version.
         """
         # To return detailed information, could set this to return the following format:
@@ -200,55 +214,46 @@ class SQLHandler:
         Authors: JRA
         Date: 2024-02-09
 
-        Explanation:
+        #### Explanation:
         Returns True when the handler is successfully connected.
 
-        Returns:
+        #### Returns:
         - self.connected (bool)
 
-        Usage:
+        #### Usage:
         >>> bool(executor)
 
-        History:
+        #### History:
         - 1.0 JRA (2024-02-09): Initial version.
         """
         return self.connected
     
     def __schema_table_to_object_name(self, schema: str, table: str) -> str:
         """
-        Converts schema and table names to a formatted object name.
-
-        Args:
-            schema (str): The schema name.
-            table (str): The table name.
-
-        Returns:
-            str: The formatted object name.
-
         ### __schema_table_to_object_name
-
+        
         Version: 1.0
         Authors: JRA
         Date: 2024-02-09
 
-        Explanation:
+        #### Explanation:
         Standardises a given schema and object to a bracket wrapped, stop separated string.
 
-        Parameters:
+        #### Parameters:
         - schema (str)
         - table (str)
 
-        Returns:
+        #### Returns:
         - (str)
 
-        Usage:
+        #### Usage:
         >>> executor.__schema_table_to_object_name('schema', 'table')
         '[schema].[table]'
 
-        Tasklist:
+        #### Tasklist:
         - What if the inputs are already wrapped?
 
-        History:
+        #### History:
         - 1.0 JRA (2024-02-09): Initial version.
         """
         schema = '' if schema is None or schema == '' else '[' + schema + '].'
@@ -258,25 +263,26 @@ class SQLHandler:
         """
         ### connect_to_mssql
 
-        Version: 1.1
+        Version: 2.0
         Authors: JRA
-        Date: 2024-02-09
+        Date: 2024-02-12
 
-        Explanation:
+        #### Explanation:
         Establishes a connection to the SQL Server.
 
-        Parameters:
+        #### Parameters:
         - auto_commit (bool): If true, transactions are committed by default. Default is false.
         - retry_wait (int): If populated, connections to the database are retried once on failure after this number of seconds. Defaults to no retry.
 
-        Returns:
+        #### Returns:
         - self.cursor (pyodbc.Cursor)
 
-        Usage:
+        #### Usage:
         >>> executor.connect_to_mssql()
         <executor.cursor>
 
-        History:
+        #### History:
+        - 2.0 JRA (2024-02-12): Revamped error handling.
         - 1.1 JRA (2024-02-09): Added retry_wait.
         - 1.0 JRA (2024-02-09): Initial version.
         """
@@ -284,24 +290,31 @@ class SQLHandler:
             LOG.error(f"Connection to {str(self)} already open.")
             return
         LOG.info(f'Attempting to connect to {self}...')
-        try:
-            self.conn = pyodbc.connect(self.__connection_string, autocommit = auto_commit)
-            self.cursor = self.conn.cursor()
-        except:
+        retry = True
+        while True:
             try:
-                sleep(retry_wait or self.retry_wait)
                 self.conn = pyodbc.connect(self.__connection_string, autocommit = auto_commit)
+            except pyodbc.OperationalError as e:
+                LOG.error(f"A database operational error occurred while connecting to {self}. {e}")
+                retry_wait = retry_wait or self.retry_wait
+                if retry and retry_wait is not None:
+                    retry = False
+                    LOG.info(f"Waiting {retry_wait} seconds before retrying connection.")
+                    sleep(retry_wait)
+                else:
+                    raise
+            except pyodbc.InterfaceError as e:
+                LOG.error(f"A database interface error occurred while connecting to {self}. {e}")
+                raise
+            except Exception as e:
+                LOG.critical(f"Unexpected {type(e)} error occurred whilst connecting to {self}. {e}")
+                raise
+            else:
                 self.cursor = self.conn.cursor()
-            except pyodbc.InterfaceError as error:
-                LOG.error(f'Failed to connect to {self}. {error}. Available drivers: {pyodbc.drivers()}.')
-                raise
-            except Exception as error:
-                LOG.error(f'Failed to connect to {self}. {error}')
-                raise
-        else:
-            self.connected = True
-            LOG.info(f"Successfully connected to {str(self)}.")
-            return self.cursor
+                self.connected = True
+                LOG.info(f"Successfully connected to {self}.")
+                break
+        return self.cursor
     
     def rollback(self):
         """
@@ -311,13 +324,13 @@ class SQLHandler:
         Authors: JRA
         Date: 2024-02-09
 
-        Explanation:
+        #### Explanation:
         Rolls back transactions.
 
-        Usage:
+        #### Usage:
         >>> executor.rollback()
 
-        History:
+        #### History:
         - 1.0 JRA (2024-02-09): Initial version.
         """
         if not self.connected:
@@ -335,13 +348,13 @@ class SQLHandler:
         Authors: JRA
         Date: 2024-02-09
 
-        Explanation:
+        #### Explanation:
         Commits transactions.
 
-        Usage:
+        #### Usage:
         >>> executor.commit()
 
-        History:
+        #### History:
         - 1.0 JRA (2024-02-09): Initial version.
         """
         if not self.connected:
@@ -359,20 +372,20 @@ class SQLHandler:
         Authors: JRA
         Date: 2024-02-09
 
-        Explanation:
+        #### Explanation:
         Closes the open connection.
 
-        Requirements:
+        #### Requirements:
         - SQLHandler.commit
         - SQLHandler.rollback
 
-        Parameters:
+        #### Parameters:
         - commit (bool): If true, transaction is committed. Defaults to true.
 
-        Usage:
+        #### Usage:
         >>> executor.close_connection()
 
-        History:
+        #### History:
         - 1.0 JRA (2024-02-09): Initial version.
         """
         if not self.connected:
@@ -393,36 +406,33 @@ class SQLHandler:
         """
         ### select_to_dataframe
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-02-09
+        Date: 2024-02-12
 
-        Explanation:
+        #### Explanation:
         Executes a DQL script and returns the result as a DataFrame.
 
-        Requirements:
+        #### Requirements:
         - SQLHandler.connect_to_mssql
 
-        Parameters:
+        #### Parameters:
         - query (str): The query to run.
         - values (tuple): The values to substitute into the query. Defaults to None.
 
-        Returns:
+        #### Returns:
         - (pandas.DataFrame): Output of query.
 
-        Usage:
+        #### Usage:
         >>> executor.select_to_dataframe("SELECT 'value' AS [column]")
         <pandas.DataFrame>
 
-        History:
+        #### History:
+        - 1.1 JRA (2024-02-12): Error handling moved to connect_to_mssql.
         - 1.0 JRA (2024-02-09): Initial version.
         """
         if not self.connected:
-            try:
-                self.cursor = self.connect_to_mssql(auto_commit = False)
-            except Exception as error:
-                LOG.error(f"Could not connect to {self}. {error}.")
-                return
+            self.connect_to_mssql(auto_commit = False)
         LOG.info(f"Generating dataframe against {str(self)}.")
         results = self.execute_query(query, values, commit = False)
         # selection = pd.read_sql_query(query, con=self.conn)
@@ -433,47 +443,57 @@ class SQLHandler:
         """
         ### execute_query
 
-        Version: 1.0
+        Version: 2.0
         Authors: JRA
-        Date: 2024-02-09
+        Date: 2024-02-12
 
-        Explanation:
+        #### Explanation:
         Executes a SQL query.
 
-        Requirements:
+        #### Requirements:
         - SQLHandler.connect_to_mssql
         - SQLHandler.close_connection
 
-        Parameters:
+        #### Parameters:
         - query (str): The query to run.
         - values (tuple): The values to substitute into the query. Defaults to None.
         - commit (bool): If true, the query is committed.
 
-        Returns:
+        #### Returns:
         - selection (None|list[pyodbc.Row]): The output selection of the query.
 
-        Usage:
+        #### Usage:
         >>> executor.execute_query("SELECT 'value' AS [column]")
 
-        History: 
+        #### History:
+        - 2.0 JRA (2024-02-12): Revamped error handling.
         - 1.0 JRA (2024-02-09): Initial version.
         """
         if not self.connected:
-            try:
-                self.cursor = self.connect_to_mssql(auto_commit = commit)
-            except Exception as error:
-                LOG.error(f"Could not connect to {self}. {error}.")
-                return
+            self.connect_to_mssql(auto_commit = commit)
         LOG.info(f"Running script against {str(self)}:\n{query}\nValues: {values}.")
-        if values is None:
-            self.cursor.execute(query)
-        else:
-            self.cursor.execute(query, (values))
+
+        try:
+            if values is None:
+                self.cursor.execute(query)
+            else:
+                self.cursor.execute(query, (values))
+        except pyodbc.ProgrammingError as e:
+            LOG.error(f"Failed to parse script on {self}. {e}")
+            raise
+        except Exception as e:
+            LOG.critical(f"Unexpected {type(e)} error occurred whilst executing query on {self}. {e}")
+            raise
+
         try:
             selection = self.cursor.fetchall()
-        except Exception as error:
-            LOG.error(f"Error occurred during fetch. {error}")
+        except pyodbc.ProgrammingError as e:
+            LOG.warning(f"Could not retrieve query results. {e}")
             selection = None
+        except Exception as e:
+            LOG.critical(f"Unexpected {type(e)} error occurred whilst retrieving query results on {self}. {e}")
+            raise
+
         self.close_connection(commit)
         return selection
     
@@ -481,28 +501,29 @@ class SQLHandler:
         """
         ### query_columns
 
-        Version: 1.0
+        Version: 2.0
         Authors: JRA
-        Date: 2024-02-09
+        Date: 2024-02-12
 
-        Explanation:
+        #### Explanation:
         Retrieves the columns of a query or the most recently executed query.
 
-        Requirements:
+        #### Requirements:
         - SQLHandler.execute_query
 
-        Parameters:
+        #### Parameters:
         - query (str): The query to execute if needed. Defaults to the previous query.
         - values (tuple): The values to substitute into the query. Defaults to previous query.
 
-        Returns:
+        #### Returns:
         - cols (list[str]): A list of columns of the output of the select query.
 
-        Usage:
+        #### Usage:
         >>> executor.query_columns()
         ['column']
 
-        History:
+        #### History:
+        - 2.0 JRA (2024-02-09): Revamped error handling.
         - 1.0 JRA (2024-02-09): Initial version.
         """
         if query is not None:
@@ -510,9 +531,12 @@ class SQLHandler:
 
         try:
             cols = [col[0] for col in self.description]
-        except Exception as error:
-            LOG.warning(f"No query description available from {self}. {error}")
-            return None
+        except TypeError as e:
+            LOG.warning(f"No query description available from {self}. {e}")
+            raise
+        except Exception as e:
+            LOG.critical(f"Unexpected {type(e)} error occurred when reading cursor description from {self}. {e}")
+            raise
         else:
             return cols
 
@@ -533,19 +557,19 @@ class SQLHandler:
         """
         ### insert
 
-        Version: 1.0
+        Version: 2.0
         Authors: JRA
-        Date: 2024-02-09
+        Date: 2024-02-12
 
-        Explanation:
+        #### Explanation:
         Inserts data into a specified table.
 
-        Requirements:
+        #### Requirements:
         - SQLHandler.connect_to_mssql
         - SQLHandler.create_table
         - SQLHandler.close_connection
 
-        Parameters:
+        #### Parameters:
         - schema (str): The schema of the object to insert to.
         - table (str): The table to insert to.
         - cols (list[str]): The columns to insert to. Defaults to all columns of existing table. Defaults to None.
@@ -558,10 +582,14 @@ class SQLHandler:
         - replace_table (bool): If true, the table is replaced if it already exists. Defaults to false.
         - commit (bool): If true, the insert is committed. Defaults to true.
 
-        Usage:
+        #### Usage:
         >>> executor.insert('schema', 'table', df)
 
-        History:
+        #### Tasklist:
+        - Add functionality to retry inserts without fast_executemany - not sure which error warrants the retry.
+
+        #### History:
+        - 2.0 JRA (2024-02-09): Revamped error handling.
         - 1.0 JRA (2024-02-09): Initial version.
         """
         if df is None and values is None:
@@ -575,11 +603,7 @@ class SQLHandler:
             return
         
         if not self.connected:
-            try:
-                self.connect_to_mssql(auto_commit = commit)
-            except Exception as error:
-                LOG.error(f"Could not connect to {self}. {error}.")
-                return
+            self.connect_to_mssql(auto_commit = commit)
         
         if auto_create_table:
             if not self.create_table(table, cols, schema = schema, replace = replace_table, commit = commit):
@@ -587,30 +611,51 @@ class SQLHandler:
                 return
         object_name = self.__schema_table_to_object_name(schema, table)
 
+        self.connect_to_mssql(commit)
+        if prescript is not None:
+            LOG.info(f"Running prescript...")
+            self.execute_query(prescript)
+        LOG.info(f"Inserting into {object_name} on {self}...")
+        self.cursor.fast_executemany = fast_execute
+        cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(cols) + '])' if len(cols) > 0 else ''} VALUES ({'?' + (len(values[0]) - 1)*', ?'})"
         try:
-            LOG.info(f"Inserting into {object_name} at {str(self)}...")
-            self.connect_to_mssql(commit)
-            if prescript is not None:
-                LOG.info(f"Running script against {str(self)}:\n{prescript}")
-                self.cursor.execute(prescript)
-            self.cursor.fast_executemany = fast_execute
-            cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(cols) + '])' if len(cols) > 0 else ''} VALUES ({'?' + (len(values[0]) - 1)*', ?'})"
-            try:
-                self.cursor.executemany(cmd, values)
-            except Exception as error:
-                if fast_execute:
-                    LOG.error(f"Insert failed. {error}.\nAttempting insert without fast_executemany...")
-                    self.cursor.fast_executemany = False
-                    self.cursor.executemany(cmd, values)
-            if postscript is not None:
-                LOG.info(f"Running script against {str(self)}:\n{postscript}")
-                self.cursor.execute(postscript)
-        except Exception as error:
-            self.close_connection(commit = False)
-            LOG.error(f"Insert failed. Error: {error}.")
-        else:
-            LOG.info(f"Insert complete!")
-            self.close_connection(commit)
+            self.cursor.executemany(cmd, values)
+        except pyodbc.ProgrammingError as e:
+            LOG.error(f"Failed to parse script on {self}. {e}")
+            raise
+        except Exception as e:
+            LOG.critical(f"Unexpected {type(e)} error occurred whilst performing insert to {object_name} on {self}. {e}")
+            raise
+        LOG.info(f"Insert was successful!")
+        if postscript is not None:
+            LOG.info(f"Running postscript...")
+            self.execute_query(postscript)
+        self.close_connection(commit = commit)
+
+        # try:
+        #     LOG.info(f"Inserting into {object_name} at {str(self)}...")
+        #     self.connect_to_mssql(commit)
+        #     if prescript is not None:
+        #         LOG.info(f"Running script against {str(self)}:\n{prescript}")
+        #         self.cursor.execute(prescript)
+        #     self.cursor.fast_executemany = fast_execute
+        #     cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(cols) + '])' if len(cols) > 0 else ''} VALUES ({'?' + (len(values[0]) - 1)*', ?'})"
+        #     try:
+        #         self.cursor.executemany(cmd, values)
+        #     except Exception as e:
+        #         if fast_execute:
+        #             LOG.error(f"Insert failed. {error}.\nAttempting insert without fast_executemany...")
+        #             self.cursor.fast_executemany = False
+        #             self.cursor.executemany(cmd, values)
+        #     if postscript is not None:
+        #         LOG.info(f"Running script against {str(self)}:\n{postscript}")
+        #         self.cursor.execute(postscript)
+        # except Exception as e:
+        #     self.close_connection(commit = False)
+        #     LOG.error(f"Insert failed. Error: {error}.")
+        # else:
+        #     LOG.info(f"Insert complete!")
+        #     self.close_connection(commit)
         return
     
     def create_table(
@@ -629,15 +674,15 @@ class SQLHandler:
         Authors: JRA
         Date: 2024-02-09
 
-        Explanation: 
+        #### Explanation: 
         Creates a table in the database.
 
-        Requirements:
+        #### Requirements:
         - SQLHandler.__schema_table_to_object_name
         - SQLHandler.execute_query
         - SQLHandler.close_connection
 
-        Parameters:
+        #### Parameters:
         - table (str): The name of the table.
         - columns (list[str]): The columns of the table.
         - datatypes (list[str]): The datatypes of the columns.
@@ -645,27 +690,32 @@ class SQLHandler:
         - replace (bool): If true, if the table name already exists, then that table is dropped first. Defaults to False.
         - commit (bool): If true, the transaction is committed. Defaults to True.
 
-        Returns:
+        #### Returns:
         - (bool): True if the transaction passed without issues.
 
-        Usage:
+        #### Usage:
         >>> executor.create_table('table', ['column'], ['varchar(16)'])
 
-        History:
+        #### History:
+        - 2.0 JRA (2024-02-12): Revamped error handling.
         - 1.0 JRA (2024-02-09): Initial version.
         """
         object_name = self.__schema_table_to_object_name(schema, table)
+        LOG.info(f"Creating {object_name} on {self}...")
+
         if not replace:
-            try:
-                result = self.execute_query(f"SELECT 1 FROM sys.tables WHERE [object_id] = OBJECT_ID('{object_name}')", commit = False)[0][0]
-            except IndexError:
-                result = None
+            result = self.execute_query(
+                query = "SELECT OBJECT_ID(?)",
+                values = (object_name),
+                commit = False
+            )[0][0]
             if result is not None:
                 LOG.info(f"The table {object_name} already exists.")
                 return 1
             cmd = ""
         else:
             cmd = f"DROP TABLE IF EXISTS {object_name};\n"
+
         col_count = len(columns)
         datatype_count = len(datatypes)
         if datatype_count >= col_count:
@@ -673,14 +723,10 @@ class SQLHandler:
         else:
             max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) FROM sys.types WHERE [system_type_id] = 231", commit = False)[0][0]
             datatypes.extend([f'nvarchar({max_length})']*(col_count - datatype_count))
+        
         column_definition = ',\n\t'.join(f"[{col}] {datatype}" for col, datatype in zip(columns, datatypes))
+
         cmd += f"CREATE TABLE {object_name} (\n\t{column_definition}\n)"
-        try:
-            self.execute_query(cmd, commit = commit)
-        except Exception as error:
-            self.close_connection(commit = False)
-            LOG.error(f"Failed to create table {object_name} at {str(self)}. Error: {error}.")
-            return 0
-        else:
-            LOG.info(f"Successfully created table {object_name} at {str(self)}.")
-            return 1
+        self.execute_query(cmd, commit = commit)
+        LOG.info(f"Successfully created table {object_name} at {str(self)}.")
+        return 1

@@ -89,7 +89,7 @@ def validate_string(string: str, target: str) -> tuple[str, None|str]:
     - Add more formats to datetime_formats dictionary.
 
     #### History:
-    - 1.0 JRA (2024-01-30)
+    - 1.0 JRA (2024-01-30): Initial version.
     """
     if not regex.match(target, string):
         return (string, 'String did not match target string.')
@@ -114,8 +114,8 @@ def validate_string(string: str, target: str) -> tuple[str, None|str]:
     target_datetime = {datetime_formats[k]:v for k,v in target_datetime.items()}
     try:
         datetime.strptime("".join(target_datetime.values()), "".join(target_datetime.keys()))
-    except ValueError as error:
-        return (string, str(error))
+    except ValueError as e:
+        return (string, str(e))
     else:
         return (string, None)
 
@@ -123,9 +123,9 @@ def validate_email(original_email: str, domain_check: bool = False) -> tuple[str
     """
     ### validate_email
 
-    Version: 1.0
+    Version: 1.1
     Authors: JRA
-    Date: 2024-01-30
+    Date: 2024-02-12
 
     #### Explanation:
     Validates an email.
@@ -149,13 +149,14 @@ def validate_email(original_email: str, domain_check: bool = False) -> tuple[str
     ("JRA.Euler.notifications@gmail.com", None)
 
     #### History:
+    - 1.1 JRA (2024-02-12): Generic exceptions are no longer ignored.
     - 1.0 JRA (2024-01-30): Initial version.
     """
-    from email_validator import validate_email
+    import email_validator
     try:
-        email = validate_email(original_email, check_deliverability = domain_check)
-    except Exception as error:
-        return (original_email, str(error))
+        email = email_validator.validate_email(original_email, check_deliverability = domain_check)
+    except (email_validator.exceptions_types.EmailNotValidError, email_validator.exceptions_types.EmailSyntaxError, email_validator.exceptions_types.EmailUndeliverableError) as e:
+        return (original_email, str(e))
     else:
         return (email.normalized, None)
         
@@ -163,9 +164,9 @@ def validate_postcode(original_postcode: str, country: str = "GB") -> tuple[str,
     """
     ### validate_postcode
 
-    Version: 1.0
+    Version: 1.1
     Authors: JRA
-    Date: 2024-01-30
+    Date: 2024-02-12
 
     #### Explanation:
     Validates UK postcodes.
@@ -189,17 +190,19 @@ def validate_postcode(original_postcode: str, country: str = "GB") -> tuple[str,
     - Might be worth having a mapping from country names to codes.
 
     #### History:
+    - 1.1 JRA (2024-02-12): Generic exceptions are no longer ignored.
     - 1.0 JRA (2024-01-30): Initial version.
     """
     from postcode_validator.uk.uk_postcode_validator import UKPostcode
+    import postcode_validator.Exceptions.exceptions as postcodeexceptions
     if country == "UK":
         country = "GB"
     if country != "GB":
         return (original_postcode, "Cannot validate postcodes outside of GB.")
     try:
         postcode = UKPostcode(original_postcode)
-    except Exception as error:
-        return (original_postcode, str(error))
+    except postcodeexceptions.ValidationError as e:
+        return (original_postcode, str(e))
     else:
         return (postcode.postcode, None)
     
@@ -207,9 +210,9 @@ def validate_phone(original_phone: str, country: str = "GB") -> tuple[str, None|
     """
     ### validate_phone
 
-    Version: 1.0
+    Version: 1.1
     Authors: JRA
-    Date: 2024-01-30
+    Date: 2024-02-12
 
     #### Explanation: 
     Validates phone numbers.
@@ -234,12 +237,13 @@ def validate_phone(original_phone: str, country: str = "GB") -> tuple[str, None|
     - Might be worth having a mapping from country names to codes.
 
     #### History:
+    - 1.1 JRA (2024-02-12): Generic exceptions are no longer ignored.
     - 1.0 JRA (2024-01-30): Initial version.
     """
     import phonenumbers
     try:
         phone = phonenumbers.parse(original_phone, region = country)
-    except Exception as error:
+    except phonenumbers.phonenumberutil.NumberParseException as error:
         return (original_phone, str(error))
     else:
         return ("+" + str(phone.country_code) + str(phone.national_number), None)
@@ -344,6 +348,25 @@ class MDWJob:
     - 1.1 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text in send_job_notification.
     - 1.0 JRA (2024-01-30): "Initial" version (there have been so many developments, but this is when I'm writing the docstrings).
     """
+    class MDWJobError(Exception):
+        """
+        ## MDWJobError
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-02-12
+
+        #### Explanation:
+        Custom exception class for MDWJob. Has the same behaviour as the base `Exception` class.
+
+        #### Usage:
+        >>> raise self.MDWJobError("Error message.")
+
+        #### History: 
+        - 1.0 JRA (2024-02-12): Initial version.
+        """
+        pass
+
     def __init__(self, supjob_name: str, mdw: SQLHandler):
         """
         ### __init__
@@ -517,9 +540,9 @@ class MDWJob:
         """
         ### job_start
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-02-12
 
         #### Explanation:
         Attempts to start a job. It will fail if a job is still running or the given name is not in the correct format.
@@ -539,6 +562,7 @@ class MDWJob:
         >>> source_control("source_010_aspect")
 
         #### History:
+        - 1.1 JRA (2024-02-12): Error handling moved to SQLHandler class.
         - 1.0 JRA (2024-01-30): Initial version.
         """
         if self.supjob_name is None:
@@ -562,14 +586,9 @@ class MDWJob:
             LOG.critical(error)
             return False
         
-        try:
-            self.mdw.execute_query("EXECUTE [log].[usp_jobdetail_insert] @jobname = ?, @jobdetailid = ?, @jobid = ?, @status = 'Processing', @file_id = ?", values = (self.job_name, self.job_id, self.supjob_id, filename))
-        except Exception as error:
-            LOG.critical(f'Subjob "{self.job_name}" could not be started. {error}')
-            return False
-        else:
-            LOG.info(f'Subjob "{self.job_name}" started.')
-            return True
+        self.mdw.execute_query("EXECUTE [log].[usp_jobdetail_insert] @jobname = ?, @jobdetailid = ?, @jobid = ?, @status = 'Processing', @file_id = ?", values = (self.job_name, self.job_id, self.supjob_id, filename))
+        LOG.info(f'Subjob "{self.job_name}" started.')
+        return True
         
     def job_end(self, status: str, error_message: str = None):
         """

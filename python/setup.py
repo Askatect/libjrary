@@ -8,7 +8,7 @@ with open("README.md", "r") as f:
 if not regex.fullmatch(r"^\d+\.\d+\.\d+$", old_version):
     raise Exception("Existing version number could not be read.")
 
-new_version = input(f"Existing pyjap version is {old_version}.\nEnter new version: ")
+new_version = input(f"Existing pyjra version is {old_version}.\nEnter new version: ")
 if not regex.fullmatch(r"^\d+\.\d+\.\d+$", new_version):
     raise Exception("Incorrect format for version number!")
 old_major, old_minor, old_patch = [int(x) for x in old_version.split('.')]
@@ -30,8 +30,8 @@ docstring['Date'] = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 docstring['Explanation'] = 'The libjrary features several generic tools for Python and SQL that I find useful.'
 with open("requirements.txt", "r", encoding = 'utf-16') as f:
     docstring['Requirements'] = '- ' + '\n- '.join(line.strip() for line in f)
-docstring['Attributes'] = '\n'.join(['- ' + f for f in listdir('pyjap') if f.endswith('.py')])
-docstring['Usage'] = f">>> pip install <path>/pyjap-{new_version}-py3-none-any.whl\nor\n>>> powershell -File <path>\librare_pyjap_to_wheel.ps1"
+docstring['Attributes'] = '\n'.join(['- ' + f for f in listdir('pyjra') if f.endswith('.py')])
+docstring['Usage'] = f">>> pip install <path>/pyjra-{new_version}-py3-none-any.whl\nor\n>>> powershell -File <path>\librare_pyjra_to_wheel.ps1"
 with open("README.md", "r") as f:
     lines = f.readlines()
     try:
@@ -51,7 +51,7 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 setup(
-    name = "pyjap",
+    name = "pyjra",
     version = new_version,
     author = "JRA",
     description = "Python tools from the libjrary.",

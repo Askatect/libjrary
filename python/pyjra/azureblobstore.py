@@ -98,19 +98,24 @@ class AzureBlobHandler:
         - 1.0 JRA (2024-02-06): Initial version.
         """
         if environment is None and connection_string is None:
-            LOG.critical("One of environment and connection_string must be specified.")
-            return
+            error = "One of environment and connection_string must be specified."
+            LOG.critical(error)
+            raise ValueError(error)
         elif connection_string is None:
             connection_string = kr.get_password(environment, "blob_connection_string")
         self.__connection_string = connection_string
         LOG.info(f"Connecting to {str(self)}...")
         try:
             self.__storage_client = BlobServiceClient.from_connection_string(connection_string)
-        except Exception as error:
-            LOG.critical(f"Failed to connect to {str(self)}. {str(error)}")
+        except ValueError as e:
+            LOG.error(f"Failed to connect to {self}. {e}")
+            raise
+        except Exception as e:
+            LOG.error(f"Unexpected {type(e)} error occurred whilst connecting to {self}. {e}")
+            raise
         else:
-            LOG.info(f"Successfully connected to {str(self)}.")
-        return
+            LOG.info(f"Successfully connected to {self}.")
+            return
     
     def __str__(self):
         """
