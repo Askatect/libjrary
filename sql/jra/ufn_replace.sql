@@ -23,13 +23,13 @@ Returns:
 - (nvarchar(max)): The input with string with all appropriate replacements.
 
 Usage:
->>> [utl].[ufn_replace]('Old', 'New', 0, 'Replace Old Text')
+>>> [jra].[ufn_replace]('Old', 'New', 0, 'Replace Old Text')
 'Replace New Text'
->>> [utl].[ufn_replace]('New', 'Newer', 1, 'Replace New Text')
+>>> [jra].[ufn_replace]('New', 'Newer', 1, 'Replace New Text')
 'Replace New Text'
->>> [utl].[ufn_replace]('  ', ' ', 0, 'Three   spaces.')
+>>> [jra].[ufn_replace]('  ', ' ', 0, 'Three   spaces.')
 'Three spaces.'
->>> [utl].[ufn_replace]('[^0-9]', '', 0, 'Source_20240101.csv')
+>>> [jra].[ufn_replace]('[^0-9]', '', 0, 'Source_20240101.csv')
 '20240101'
 
 History:
