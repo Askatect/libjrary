@@ -1,9 +1,9 @@
 """
 # eulib.py
 
-Version: 1.1.1
+Version: 1.2.0
 Authors: JRA
-Date: 2024-02-08
+Date: 2024-02-13
 
 #### Explanation:
 Library of functions and classes that might be useful for Euler DataOps and Analytics.
@@ -37,6 +37,7 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - Is standardiser necessary?
 
 #### History:
+- 1.2.0 JRA (2024-02-13): Revamped error handling.
 - 1.1.1 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text in send_job_notification in MDWJob.
 - 1.1.0 JRA (2024-02-02): Replaced tabulate.tabulate with pyjap.formatting.tabulate. Added mdw_basic_query_builder.
 - 1.0.0 JRA (2024-01-30): Initial version.
@@ -294,14 +295,16 @@ class MDWJob:
     """
     ## MDWJob
 
-    Version: 1.1
+    Version: 2.0
     Authors: JRA
-    Date: 2024-02-08
+    Date: 2024-02-13
 
     #### Explanation:
     Handles jobs in an MDW.
 
     #### Artefacts:
+    - MDWJobError (class): Custom exception class for MDWJob. Has the same behaviour as the base `Exception` class. Should be used to raise errors that occur from trying to start or end jobs and supjobs.
+    - MDWSQLError (class): Custom exception class for MDWJob. Has the same behaviour as the base `Exception` class. Should be used to raise errors that occur from executed SQL (other than those from the SQLHandler).
     - mdw (pyjap.sql.SQLHandler): Instance of SQL handler class that is where the job will be executed.
     - supjob_name (str): The name of the supjob being executed.
     - supjob_id (str): The identifier of the supjob being executed.
@@ -345,6 +348,7 @@ class MDWJob:
     - Could be better to force start a new job when a new job name is given. Then it wouldn't be necessary to check job status at the start of each private method. It could then be possible to call private methods without starting (and without not ending) a job.
 
     #### History:
+    - 2.0 JRA (2024-02-13): Revamped error handling.
     - 1.1 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text in send_job_notification.
     - 1.0 JRA (2024-01-30): "Initial" version (there have been so many developments, but this is when I'm writing the docstrings).
     """
@@ -357,10 +361,29 @@ class MDWJob:
         Date: 2024-02-12
 
         #### Explanation:
-        Custom exception class for MDWJob. Has the same behaviour as the base `Exception` class.
+        Custom exception class for MDWJob. Has the same behaviour as the base `Exception` class. Should be used to raise errors that occur from trying to start or end jobs and supjobs.
 
         #### Usage:
         >>> raise self.MDWJobError("Error message.")
+
+        #### History: 
+        - 1.0 JRA (2024-02-12): Initial version.
+        """
+        pass
+
+    class MDWSQLError(Exception):
+        """
+        ## MDWJobError
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-02-12
+
+        #### Explanation:
+        Custom exception class for MDWJob. Has the same behaviour as the base `Exception` class. Should be used to raise errors that occur from executed SQL (other than those from the SQLHandler).
+
+        #### Usage:
+        >>> raise MDWJob.MDWSQLError("Error message.")
 
         #### History: 
         - 1.0 JRA (2024-02-12): Initial version.
@@ -371,9 +394,9 @@ class MDWJob:
         """
         ### __init__
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-02-13
 
         #### Explanation:
         Initialises the MDWJob, creates a supjob identifier and logs the start of the job.
@@ -389,16 +412,11 @@ class MDWJob:
         >>> MDWJob("source_000_aspect", pyjap.sql.SQLHandler(environment = "dev"))
 
         #### History:
+        - 1.1 JRA (2024-02-13): The instance supjob name and id is now set by supjob_start.
         - 1.0 JRA (2024-01-30): Initial version.
         """
         self.mdw = mdw
-        self.supjob_name = supjob_name
-
-        self.supjob_id = str(uuid.uuid4())
-        LOG.info(f"Supjob ID: {self.supjob_id}.")
-
-        self.supjob_start()
-
+        self.supjob_start(supjob_name)
         self.job_id = None
         self.job_name = None
         return
@@ -446,9 +464,8 @@ class MDWJob:
         #### History:
         - 1.0 JRA (2024-01-30): Initial version.
         """
-        if self.supjob_name is None:
-            return
-        self.supjob_end()
+        if self.supjob_name is not None:
+            self.supjob_end()
         return
     
     def __validate_job_name(self, job_name: str) -> tuple[str, None|str]:
@@ -481,13 +498,13 @@ class MDWJob:
             self.aspect = aspect
             return (job_name, None)
     
-    def supjob_start(self):
+    def supjob_start(self, supjob_name: str):
         """
         ### supjob_start
 
-        Version: 1.0
+        Version: 2.0
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-02-13
 
         #### Explanation:
         Logs the start of the supjob.
@@ -498,12 +515,22 @@ class MDWJob:
         #### Usage:
         >>> source_control.supjob_start()
 
-        #### Tasklist:
-        - Handle the case where a user attempts to start a supjob in the middle of use. Maybe make this a private method that takes supjob_name as a parameter, and only works if self.supjob_name is not already assigned.
-
-        #### History: 
+        #### History:
+        - 2.0 JRA (2024-02-13): Errors are not passed silently, and the supjob name must be passed for the supjob to start. The supjob name is also validated now.
         - 1.0 JRA (2024-01-30): Initial version.
         """
+        if self.supjob_name is not None:
+            error = f"Supjob {self.supjob_name} is already running!"
+            LOG.error(error)
+            raise MDWJob.MDWJobError(error)
+        
+        supjob_name, error = self.__validate_job_name(supjob_name)
+        if error is not None:
+            LOG.error(error)
+            raise MDWJob.MDWJobError(error)
+        
+        self.supjob_id = str(uuid.uuid4())
+        self.supjob_name = supjob_name
         LOG.info("Logging start of supjob.")
         self.mdw.execute_query("EXECUTE [log].[usp_job_insert] @jobname = ?, @jobid = ?", values = (self.supjob_name, self.supjob_id))
         return
@@ -512,9 +539,9 @@ class MDWJob:
         """
         ### supjob_end
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-02-13
 
         #### Explanation: 
         Logs the end of the supjob.
@@ -526,23 +553,26 @@ class MDWJob:
         >>> source_control.supjobstart()
 
         #### History:
+        - 1.1 JRA (2024-02-13): Errors are no longer passed silently.
         - 1.0 JRA (2024-01-30): Initial version.
         """
         if self.supjob_name is None:
-            LOG.warning("This job has already finished.")
-            return
-        LOG.info("Logging end of supjob.")
+            error = "There is no active supjob to end."
+            LOG.error(error)
+            raise MDWJob.MDWJobError(error)
+        LOG.info(f'Finished "{self.supjob_name}".')
         self.mdw.execute_query("EXECUTE [log].[usp_job_update] @jobid = ?, @status = 'Finished'", values = (self.supjob_id))
         self.supjob_name = None
+        self.supjob_id = None
         return
 
     def job_start(self, job_name: str, filename: str = None) -> bool:
         """
         ### job_start
 
-        Version: 1.1
+        Version: 2.0
         Authors: JRA
-        Date: 2024-02-12
+        Date: 2024-02-13
 
         #### Explanation:
         Attempts to start a job. It will fail if a job is still running or the given name is not in the correct format.
@@ -562,33 +592,29 @@ class MDWJob:
         >>> source_control("source_010_aspect")
 
         #### History:
+        - 2.0 JRA (2024-02-13): Errors are no longer silently ignored and running jobs are forcefully closed if a new one is called.
         - 1.1 JRA (2024-02-12): Error handling moved to SQLHandler class.
         - 1.0 JRA (2024-01-30): Initial version.
         """
         if self.supjob_name is None:
-            LOG.warning('Supjob is not active.')
-            return False
-        elif job_name is None:
-            LOG.warning('Job name must be provided.')
-            return False
-        elif self.job_name == job_name:
-            LOG.info(f'Job "{self.job_name}" is currently running.')
-            return True
-        elif self.job_name is not None:
-            LOG.warning(f'Cannot start a new job while "{self.job_name}" is running!')
-            return False
+            error = "Supjob has not started."
+            LOG.error(error)
+            raise MDWJob.MDWJobError(error)
+        
+        job_name, error = self.__validate_job_name(job_name)
+        if error is not None:
+            LOG.error(error)
+            raise MDWJob.MDWJobError(error)
+        
+        if self.job_name is not None:
+            LOG.warning(f"Forcefully ending {self.job_name} to start {job_name}.")
+            self.job_end()
         
         self.job_id = str(uuid.uuid4())
-        job_name, error = self.__validate_job_name(job_name)
-        if error is None:
-            self.job_name = job_name
-        else:
-            LOG.critical(error)
-            return False
-        
+        self.job_name = job_name        
         self.mdw.execute_query("EXECUTE [log].[usp_jobdetail_insert] @jobname = ?, @jobdetailid = ?, @jobid = ?, @status = 'Processing', @file_id = ?", values = (self.job_name, self.job_id, self.supjob_id, filename))
         LOG.info(f'Subjob "{self.job_name}" started.')
-        return True
+        return
         
     def job_end(self, status: str, error_message: str = None):
         """
@@ -613,13 +639,19 @@ class MDWJob:
         >>> source_control.job_end("Complete", None)
 
         #### History:
+        - 1.1 JRA (2024-02-13): Errors are no longer passed silently and there is a check that a job exists.
         - 1.0 JRA (2024-01-30): Initial version.
         """
+        if self.job_name is None:
+            error = f"There is no active job to end!"
+            LOG.error(error)
+            raise MDWJob.MDWJobError(error)
+        
         if error_message is not None:
             LOG.warning(error_message)
             self.mdw.execute_query("EXECUTE [log].[usp_log_error] @job_id = ?, @id = ?, @message = ?", values = (self.job_id, self.supjob_id, error_message))
         else:
-            LOG.info(f'Finished job "{self.job_name}".')
+            LOG.info(f'Finished job "{self.job_name}" successfully.')
         
         self.mdw.execute_query("EXECUTE [log].[usp_jobdetail_update] @jobdetailid = ?, @status = ?", values = (self.job_id, status))
         self.job_id = None
@@ -637,9 +669,9 @@ class MDWJob:
         """
         ### ingest_csv_blobs_to_mdw
 
-        Version: 1.2
+        Version: 2.0
         Authors: JRA
-        Date: 2024-02-01
+        Date: 2024-02-13
 
         #### Explanation:
         Ingest CSV files from Azure blob storage to the MDW. Archives the files if successful and rejects them if they have a bad filename or structure.
@@ -670,7 +702,8 @@ class MDWJob:
             )
 
         #### History:
-        - 1.2 JRA (2023-01-02): Fixed an issue where the arguments for __add_artificial_key_file_id were misaligned.
+        - 2.0 JRA (2024-02-13): Revamped error handling.
+        - 1.2 JRA (2024-01-02): Fixed an issue where the arguments for __add_artificial_key_file_id were misaligned.
         - 1.1 JRA (2024-01-31): Added functionality for multiple acceptable filename formats.
         - 1.0 JRA (2024-01-30): Initial version.
         """
@@ -682,8 +715,7 @@ class MDWJob:
         filelist = [blob for blob in filelist if blob.startswith(directory) and blob.count('/') == 1]
 
         for filename in filelist:
-            if not self.job_start(job_name, filename):
-                continue
+            self.job_start(job_name, filename)
         
             LOG.info("Verifying filename...")
             for filename_format in filename_formats:
@@ -700,19 +732,23 @@ class MDWJob:
             
             LOG.info("Staging file...")
             try:
-                self.__stage_blob(self.job_name, azure_storage, container, filename)
-            except Exception as error:
-                self.job_end('Failure', f'Could not stage file "{filename}". {error}')
-                continue
+                self.__stage_blob(
+                    azure_storage = azure_storage, 
+                    container = container, 
+                    filename = filename
+                )
+            except Exception as e:
+                self.job_end('Failure', f'Unexpected {type(e)} error occurred during staging of "{filename}". {e}')
+                raise
             else:
                 LOG.info(f'File "{filename}" has been staged in {self.mdw}.')
 
             LOG.info("Performing structure compliance...")
             try:
-                structure_compliance_result = self.__structure_compliance(self.job_name)
-            except Exception as error:
-                self.job_end('Failure', f'Could not perform structure compliance. {error}')
-                continue
+                structure_compliance_result = self.__structure_compliance()
+            except Exception as e:
+                self.job_end('Failure', f'Unexpected {type(e)} error occurred during structure compliance. {e}')
+                raise
             if structure_compliance_result is not None:
                 azure_storage.rename_blob(container, filename, filename.replace(directory, directory + 'rejected/'))
                 self.job_end('Rejected', f'File did not pass structure compliance. {structure_compliance_result}')
@@ -723,23 +759,19 @@ class MDWJob:
 
             LOG.info("Adding [FileId], [artificialkey] and [identity] columns to the staged table...")
             try:
-                self.__add_artificial_key_file_id(
-                    job_name = self.job_name, 
-                    job_id = self.job_id,
-                    filename = filename
-                )
-            except Exception as error:
-                self.job_end('Failure', f'Could not add key columns to the staged table. {error}')
-                continue
+                self.__add_artificial_key_file_id(filename = filename)
+            except Exception as e:
+                self.job_end('Failure', f'Unexpected {type(e)} error occurred during addition of key columns to the staged table. {e}')
+                raise
             else:
                 LOG.info("Key columns added to staged table.")
 
             LOG.info("Performing staging extraction...")
             try:
-                self.__staging_extraction(self.job_name)
-            except Exception as error:
-                self.job_end('Failure', f'Could not perform staging extraction. {error}')
-                continue
+                self.__staging_extraction()
+            except Exception as e:
+                self.job_end('Failure', f'Unexpected {type(e)} error occurred whilst performing staging extraction. {error}')
+                raise
             else:
                 LOG.info("Staging extraction complete.")
 
@@ -749,7 +781,6 @@ class MDWJob:
 
     def __stage_blob(
         self, 
-        job_name: str, 
         azure_storage: AzureBlobHandler,
         container: str,
         filename: str
@@ -757,9 +788,9 @@ class MDWJob:
         """
         ### __stage_blob
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-02-13
 
         #### Explanation:
         Inserts a CSV file into the "stg" schema of the MDW.
@@ -768,17 +799,14 @@ class MDWJob:
         - MDWJob.start_job
 
         #### Parameters:
-        - job_name (str)
         - azure_storage (pyjap.azureblobstore.AzureBlobs)
         - container (str)
         - filename (str)
 
-        #### History: 
+        #### History:
+        - 1.1 JRA (2024-02-13): Job is not started at the top of the method. Removed job_id and job_name parameters.
         - 1.0 JRA (2024-01-30): Initial version.
         """
-        if not self.job_start(job_name):
-            raise Exception("Could not start job.")
-        
         table = self.job_name + '_' + self.job_id
 
         LOG.info(f'Retrieving file "{filename}" from "{container}" at {azure_storage}...')
@@ -807,13 +835,13 @@ class MDWJob:
         del df
         return
     
-    def __structure_compliance(self, job_name: str, job_id: str = None) -> None|str:
+    def __structure_compliance(self) -> None|str:
         """
         ### __structure_compliance
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-02-13
 
         #### Explanation: 
         Executes the structure compliance stored procedure on a staged table.
@@ -822,27 +850,22 @@ class MDWJob:
         - MDWJob.job_start
         - [integration].[usp_structure_compliance]
 
-        #### Parameters:
-        - job_name (str)
-        - job_id (str)
-
         #### Returns:
         - (None|str): Details of error are returned, or None if structure is compliant.
 
         #### History:
+        - 1.1 JRA (2024-02-13): Job is not started at the top of the method. Removed job_id and job_name parameters.
         - 1.0 JRA (2024-01-30): Initial version.
         """
-        if not self.job_start(job_name):
-            raise Exception("Could not start job.")
-        return self.mdw.execute_query("EXECUTE [integration].[usp_structure_compliance] @job = ?, @jobid = ?, @schema = ?, @error = '', @print = 0, @display = 1", values = (self.job_name, job_id or self.job_id, 'stg'))[0][0]
+        return self.mdw.execute_query("EXECUTE [integration].[usp_structure_compliance] @job = ?, @jobid = ?, @schema = ?, @error = '', @print = 0, @display = 1", values = (self.job_name, self.job_id, 'stg'))[0][0]
     
-    def __add_artificial_key_file_id(self, job_name: str, job_id: str = None, filename: str = None):
+    def __add_artificial_key_file_id(self, filename: str = None):
         """
         ### __add_artificial_key_file_id
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-02-13
 
         #### Explanation: 
         Executes the stored procedure to add [artificialkey], [FileId] and [id] columns to a staged table.
@@ -852,25 +875,22 @@ class MDWJob:
         - [integration].[usp_add_artificial_key_file_id]
 
         #### Parameters:
-        - job_name (str)
-        - job_id (str)
         - filename (str)
 
         #### History:
+        - 1.1 JRA (2024-02-13): Job is not started at the top of the method. Removed job_id and job_name parameters.
         - 1.0 JRA (2024-01-30): Initial version.
         """
-        if not self.job_start(job_name):
-            raise Exception("Could not start job.")
-        self.mdw.execute_query("EXECUTE [integration].[usp_add_artificial_key_file_id] @job_name = ?, @job_id = ?, @filename = ?, @print = 0", values = (self.job_name, job_id or self.job_id, filename or 'NULL'))
+        self.mdw.execute_query("EXECUTE [integration].[usp_add_artificial_key_file_id] @job_name = ?, @job_id = ?, @filename = ?, @print = 0", values = (self.job_name, self.job_id, filename or 'NULL'))
         return
     
-    def __staging_extraction(self, job_name: str):
+    def __staging_extraction(self):
         """
         ### __staging_extraction
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-02-13
 
         #### Explanation: 
         Calls a stored procedure that extracts data in a staging table into new staging tables based on their semantic types, and then ingests these into the MDW.
@@ -879,14 +899,10 @@ class MDWJob:
         - MDWJob.job_start
         - [integration].[usp_staging_extraction]
 
-        #### Parameters:
-        - job_name (str)
-
         #### History:
+        - 1.1 JRA (2024-02-13): Job is not started at the top of the method. Removed job_id and job_name parameters.
         - 1.0 JRA (2024-01-30): Inital version.
         """
-        if not self.job_start(job_name):
-            raise Exception("Could not start job.")
         self.mdw.execute_query("EXECUTE [integration].[usp_staging_extraction] @job = ?, @jobid = ?, @supjobid = ?, @schema = ?, @print = 0", values = (self.job_name, self.job_id, self.supjob_id, 'stg'))
         return
     
@@ -913,26 +929,30 @@ class MDWJob:
         >>> source_control.cleaning_transforms("source_020_cleaning")
 
         #### History:
+        - 2.0 JRA (2024-02-13): Revamped error handling.
         - 1.0 JRA (2024-01-30): Initial version.
         """
-        if not self.job_start(job_name):
-            return
+        self.job_start(job_name)
         try:
-            LOG.info(f'Running "{self.job_name}" cleaning transformations on {self.mdw}.')
+            LOG.info(f'Running "{self.job_name}" cleaning transformations on {self.mdw}...')
             cleaning_result = self.mdw.execute_query(
                 """
-                DECLARE @error nvarchar(max)
-                EXECUTE [integration].[usp_cleaning] @jobname = ?, @jobid = ?, @error = @error OUTPUT
-                SELECT @error AS [error_detail]
+DECLARE @error nvarchar(max)
+EXECUTE [integration].[usp_cleaning] @jobname = ?, @jobid = ?, @error = @error OUTPUT
+SELECT @error AS [error_detail]
                 """, 
                 values = (self.job_name, self.job_id)
             )[0][0]
-        except Exception as error:
-            self.job_end('Failure', f'Python error occurred during cleaning transformations. {error}')
+        except Exception as e:
+            self.job_end('Failure', f'Unexpected Python {type(e)} error occurred during cleaning transformations. {e}')
+            raise
         else:
             if cleaning_result != None:
-                self.job_end('Failure', f'SQL error occurred during cleaning transformations. {cleaning_result}')
+                error = f'SQL error occurred during cleaning transformations. {cleaning_result}'
+                self.job_end('Failure', error)
+                raise MDWJob.MDWSQLError(error)
             else:
+                LOG.info("Cleaning transformations ran successfully.")
                 self.job_end('Complete')
         return
     
@@ -1071,8 +1091,7 @@ class MDWJob:
         if files is not None:
             files = [files] if isinstance(files, str) else files
             filenames = [filename for filename in filenames if filename in files]
-        if not self.job_start(job_name, '; '.join(filenames) if len(filenames) > 0 else None):
-            return
+        self.job_start(job_name, '; '.join(filenames) if len(filenames) > 0 else None)
         for filename in filenames:
             azure_storage.rename_blob(container, filename, folder + "/" + filename.split("/")[-1])
         self.job_end('Complete')
@@ -1117,8 +1136,7 @@ class MDWJob:
         #### History:
         - 1.0 JRA (2024-01-30): Initial version.
         """
-        if not self.job_start(job_name):
-            return
+        self.job_start(job_name)
         self.mdw.execute_query(
             f"EXECUTE [utl].[usp_purge_by_recordsource] @source = ?, @aspect = ?, @purge_mdw = ?, @purge_stg = ?, @purge_arc = ?, @commit = 1, @display = 0", 
             values = (
