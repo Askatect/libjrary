@@ -1,9 +1,9 @@
 """
 # logger.py
 
-Version: 1.0
+Version: 1.1
 Authors: JRA
-Date: 2024-02-08
+Date: 2024-02-13
 
 #### Explanation: 
 Use the LOG constant for standardised logging across pyjap.
@@ -23,6 +23,7 @@ Use the LOG constant for standardised logging across pyjap.
 >>> LOG.info("Using the log.")
 
 #### History:
+- 1.1 JRA (2024-02-13): Logger v1.1.
 - 1.0 JRA (2024-02-08): Initial version.
 """
 import logging
@@ -34,9 +35,9 @@ class Logger(logging.Logger):
     """
     ## Logger
 
-    Version: 1.0
+    Version: 1.1
     Authors: JRA
-    Date: 2024-02-08
+    Date: 2024-02-13
 
     #### Explanation:
     Use the LOG constant for standardised logging across pyjap.
@@ -50,17 +51,18 @@ class Logger(logging.Logger):
     - __init__ (func): Initialises the logger.
     - __str__ (func): Returns the default file of the logger.
     - print_to_console (func): Use this method to have the logger print to the console.
-    - print_to_file (file): Use this method to have the logger print to a file.
+    - print_to_file (func): Use this method to have the logger print to a file.
+    - add_to_root_logger (func): Adds the logger to the root logger, so log records to the logger should pass to the root logger also.
 
     #### Usage:
     >>> LOG = Logger()
     >>> LOG.print_to_file()
 
     #### Tasklist:
-    - Add a method for LOG to use the root logger (see "Install .whl from GitHub" conversation with ChatGPT).
     - Add facility for logging levels.
 
-    #### History: 
+    #### History:
+    - 1.1 JRA (2024-02-13): Added add_to_root_logger.
     - 1.0 JRA (2024-02-08): Initial version.
     """
     def __init__(
@@ -76,7 +78,7 @@ class Logger(logging.Logger):
         ### __init__
 
         Version: 1.0
-        Authors: RJA
+        Authors: JRA
         Ddate: 2024-08-02
 
         #### Explanation:
@@ -210,5 +212,57 @@ class Logger(logging.Logger):
         self.addHandler(file_handler)
         return
 
+    def add_to_root_logger(self):
+        """
+        ### add_to_root_logger
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-02-13
+
+        #### Explanation:
+        Adds the logger to the root logger, so log records to the logger should pass to the root logger also.
+
+        #### Usage:
+        >>> LOG.add_to_root_logger()
+
+        #### History:
+        - 1.0 JRA (2024-02-13): Initial version.
+        """
+        self.parent = logging.getLogger()
+        return
+
 LOG = Logger()
-LOG.__doc__ = Logger.__doc__
+"""
+### LOG
+
+Version: 1.1
+Authors: JRA
+Date: 2024-02-13
+
+#### Explanation:
+Use the LOG constant for standardised logging across pyjap.
+
+#### Artefacts:
+- name (str): The name of the logger.
+- level_name (str): The name of the logger's logging level.
+- level_value (int): The value of the logger's logging level.
+- formatter (logging.Formatter): The format of the logging level.
+- file (str): The default file to direct logs to if using `print_to_file`.
+- __init__ (func): Initialises the logger.
+- __str__ (func): Returns the default file of the logger.
+- print_to_console (func): Use this method to have the logger print to the console.
+- print_to_file (func): Use this method to have the logger print to a file.
+- add_to_root_logger (func): Adds the logger to the root logger, so log records to the logger should pass to the root logger also.
+
+#### Usage:
+>>> LOG = Logger()
+>>> LOG.print_to_file()
+
+#### Tasklist:
+- Add facility for logging levels.
+
+#### History:
+- 1.1 JRA (2024-02-13): Added add_to_root_logger.
+- 1.0 JRA (2024-02-08): Initial version.
+"""

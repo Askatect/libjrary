@@ -232,9 +232,9 @@ class SQLHandler:
         """
         ### __schema_table_to_object_name
         
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-02-09
+        Date: 2024-02-13
 
         #### Explanation:
         Standardises a given schema and object to a bracket wrapped, stop separated string.
@@ -250,14 +250,17 @@ class SQLHandler:
         >>> executor.__schema_table_to_object_name('schema', 'table')
         '[schema].[table]'
 
-        #### Tasklist:
-        - What if the inputs are already wrapped?
-
         #### History:
+        - 1.1 JRA (2024-02-13): Added support for inputs that are already wrapped.
         - 1.0 JRA (2024-02-09): Initial version.
         """
-        schema = '' if schema is None or schema == '' else '[' + schema + '].'
-        return f"{schema}[{table}]"
+        if schema is None or schema == '':
+            schema = ''
+        elif not (schema.startswith('[') and schema.endswith(']')):
+            schema = '[' + schema + '].'
+        if not (table.startswith('[') and table.endswith(']')):
+            table = '[' + table + ']'
+        return f"{schema}{table}"
     
     def connect_to_mssql(self, auto_commit: bool = False, retry_wait: int = None) -> pyodbc.Cursor|None:
         """
@@ -612,9 +615,11 @@ class SQLHandler:
         object_name = self.__schema_table_to_object_name(schema, table)
 
         self.connect_to_mssql(commit)
+
         if prescript is not None:
             LOG.info(f"Running prescript...")
             self.execute_query(prescript)
+
         LOG.info(f"Inserting into {object_name} on {self}...")
         self.cursor.fast_executemany = fast_execute
         cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(cols) + '])' if len(cols) > 0 else ''} VALUES ({'?' + (len(values[0]) - 1)*', ?'})"
@@ -627,6 +632,7 @@ class SQLHandler:
             LOG.critical(f"Unexpected {type(e)} error occurred whilst performing insert to {object_name} on {self}. {e}")
             raise
         LOG.info(f"Insert was successful!")
+        
         if postscript is not None:
             LOG.info(f"Running postscript...")
             self.execute_query(postscript)

@@ -9,16 +9,16 @@ Date: 2024-02-13
 Library of functions and classes that might be useful for Euler DataOps and Analytics.
 
 #### Requirements:
-- pyjap.logger: Handles logging of processes.
-- pyjap.formatting.dataframe_to_html: Converts a dataframe to a pretty HTML table.
-- pyjap.email: Email handler.
-- pyjap.sql: SQL DB handler.
-- pyjap.azureblobstore: Azure blob storage handler.
+- pyjra.logger: Handles logging of processes.
+- pyjra.formatting.dataframe_to_html: Converts a dataframe to a pretty HTML table.
+- pyjra.email: Email handler.
+- pyjra.sql: SQL DB handler.
+- pyjra.azureblobstore: Azure blob storage handler.
 - pandas: For dataframes.
 - uuid: For generating unique identifiers.
 - re: Regular expressions.
 - datetime.datetime
-- pyjap.formatting.tabulate: For pretty text tables.
+- pyjra.formatting.tabulate: For pretty text tables.
 
 #### Artefacts:
 - validate_string (func): Validates a given string against a given regular expression, and can also verify a single datetime within the string using named regular expression groups.
@@ -33,22 +33,21 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 >>> import eulib
 
 #### Tasklist: 
-- Revise all error handling (no more general exceptions, at least not without reraising).
 - Is standardiser necessary?
 
 #### History:
 - 1.2.0 JRA (2024-02-13): Revamped error handling.
 - 1.1.1 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text in send_job_notification in MDWJob.
-- 1.1.0 JRA (2024-02-02): Replaced tabulate.tabulate with pyjap.formatting.tabulate. Added mdw_basic_query_builder.
+- 1.1.0 JRA (2024-02-02): Replaced tabulate.tabulate with pyjra.formatting.tabulate. Added mdw_basic_query_builder.
 - 1.0.0 JRA (2024-01-30): Initial version.
 """
-from pyjap.logger import LOG
+from pyjra.logger import LOG
 
-from pyjap.formatting import dataframe_to_html
-from pyjap.formatting import tabulate
-from pyjap.sql import SQLHandler
-from pyjap.emailer import EmailHandler
-from pyjap.azureblobstore import AzureBlobHandler
+from pyjra.formatting import dataframe_to_html
+from pyjra.formatting import tabulate
+from pyjra.sql import SQLHandler
+from pyjra.emailer import EmailHandler
+from pyjra.azureblobstore import AzureBlobHandler
 
 import pandas as pd
 import uuid
@@ -305,7 +304,7 @@ class MDWJob:
     #### Artefacts:
     - MDWJobError (class): Custom exception class for MDWJob. Has the same behaviour as the base `Exception` class. Should be used to raise errors that occur from trying to start or end jobs and supjobs.
     - MDWSQLError (class): Custom exception class for MDWJob. Has the same behaviour as the base `Exception` class. Should be used to raise errors that occur from executed SQL (other than those from the SQLHandler).
-    - mdw (pyjap.sql.SQLHandler): Instance of SQL handler class that is where the job will be executed.
+    - mdw (pyjra.sql.SQLHandler): Instance of SQL handler class that is where the job will be executed.
     - supjob_name (str): The name of the supjob being executed.
     - supjob_id (str): The identifier of the supjob being executed.
     - job_name (str): The name of the job currently being executed.
@@ -343,9 +342,6 @@ class MDWJob:
             "source_001_aspect"
         )
     >>> del source_control
-
-    #### Tasklist:
-    - Could be better to force start a new job when a new job name is given. Then it wouldn't be necessary to check job status at the start of each private method. It could then be possible to call private methods without starting (and without not ending) a job.
 
     #### History:
     - 2.0 JRA (2024-02-13): Revamped error handling.
@@ -406,10 +402,10 @@ class MDWJob:
 
         #### Parameters:
         - supjob_name (str): The name of the supjob.
-        - mdw (pyjap.sql.SQLHandler): The target MDW to execute the supjob.
+        - mdw (pyjra.sql.SQLHandler): The target MDW to execute the supjob.
 
         #### Usage:
-        >>> MDWJob("source_000_aspect", pyjap.sql.SQLHandler(environment = "dev"))
+        >>> MDWJob("source_000_aspect", pyjra.sql.SQLHandler(environment = "dev"))
 
         #### History:
         - 1.1 JRA (2024-02-13): The instance supjob name and id is now set by supjob_start.
@@ -695,7 +691,7 @@ class MDWJob:
         #### Usage:
         >>> source_control.ingest_csv_blobs_to_mdw(
                 job_name = "source_010_aspect",
-                azure_storage = pyjap.azureblobstore.AzureBlobHandler(environment = "dev"),
+                azure_storage = pyjra.azureblobstore.AzureBlobHandler(environment = "dev"),
                 container = "storage",
                 filename_format = r"(?P<yyyy>\d{4})(?P<MM>\d{2})(?P<dd>\d{2})-(\d{7})(\.)Csv",
                 reject_bad_filename = False
@@ -799,7 +795,7 @@ class MDWJob:
         - MDWJob.start_job
 
         #### Parameters:
-        - azure_storage (pyjap.azureblobstore.AzureBlobs)
+        - azure_storage (pyjra.azureblobstore.AzureBlobs)
         - container (str)
         - filename (str)
 
@@ -1069,7 +1065,7 @@ SELECT @error AS [error_detail]
         
         #### Parameters:
         - job_name (str): The name of the reset job.
-        - azure_storage (pyjap.azureblobstore.AzureBlobHandler): The Azure storage client.
+        - azure_storage (pyjra.azureblobstore.AzureBlobHandler): The Azure storage client.
         - container (str): The name of the container to work with in Azure storage.
         - folder (str): The name of the folder within the container to work with in Azure storage.
         - files (str|list[str]): The file(s) to be reset from one level below the given folder to that given folder. Defaults to all possible files.
@@ -1077,7 +1073,7 @@ SELECT @error AS [error_detail]
         #### Usage: 
         >>> source_control.reset_azure_container(
                 job_name = "source_002_azurereset",
-                azure_storage = pyjap.azureblobstore.AzureBlobHandler(environment = "dev"),
+                azure_storage = pyjra.azureblobstore.AzureBlobHandler(environment = "dev"),
                 container = "storage",
                 folder = "supfolder",
                 files = "supfolder/subfolder/sample.txt"

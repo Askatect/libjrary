@@ -189,7 +189,7 @@ class AzureBlobHandler:
         container_client = self.__storage_client.get_container_client(container) 
         return container_client.list_blob_names()
         
-    def get_blob_as_bytes(self, container: str, blob: str):
+    def get_blob_as_bytes(self, container: str, blob: str) -> bytes:
         """
         ### get_blob_as_bytes
 
@@ -205,7 +205,7 @@ class AzureBlobHandler:
         - blob (str): The name of the blob to read.
 
         #### Returns:
-        - (str)
+        - (bytes)
 
         #### Usage:
         >>> aztore.get_blob_as_bytes('container', 'folder/file.ext')
@@ -218,7 +218,7 @@ class AzureBlobHandler:
         blob_client = self.__storage_client.get_blob_client(container, blob)
         return blob_client.download_blob().readall()
         
-    def get_blob_as_string(self, container: str, blob: str, encoding: str = "utf-8"):
+    def get_blob_as_string(self, container: str, blob: str, encoding: str = "utf-8") -> str:
         """
         ### get_blob_as_string
 
@@ -250,7 +250,7 @@ class AzureBlobHandler:
         LOG.info(f'Decoding "{blob}" from "{container}" in {str(self)} via {encoding} encoding.')
         return self.get_blob_as_bytes(container, blob).decode(encoding)
     
-    def get_blob_csv_as_dataframe(self, container: str, blob: str, encoding: str = "utf-8", header: int = 0):
+    def get_blob_csv_as_dataframe(self, container: str, blob: str, encoding: str = "utf-8", header: int = 0) -> pd.DataFrame:
         """
         ### get_blob_csv_as_dataframe
 

@@ -927,12 +927,11 @@ def tabulate(table: list[list[str]], header: int = 1, null: str = '') -> str:
                 value = null
             pad = widths[c] + 1 - len(value)
             if r < header:
-                odd = pad % 2
-                left_pad = pad // 2
-                right_pad = pad // 2 + int(odd)
+                left_pad = pad // 2 + pad % 2
+                right_pad = pad // 2
             else:
-                left_pad = 0
-                right_pad = pad
+                left_pad = pad
+                right_pad = 0
             tabular += '| ' + left_pad*' ' + value + right_pad*' '
         tabular += '|\n'
     for c in range(len(widths)):
