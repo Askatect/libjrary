@@ -1,9 +1,9 @@
 """
 # eulib.py
 
-Version: 1.2.0
+Version: 1.2.1
 Authors: JRA
-Date: 2024-02-13
+Date: 2024-02-16
 
 #### Explanation:
 Library of functions and classes that might be useful for Euler DataOps and Analytics.
@@ -36,6 +36,7 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - Is standardiser necessary?
 
 #### History:
+- 1.2.1 JRA (2024-02-16): In the MDWJob class, began Tabular implementation and fixed a bug in __init__.
 - 1.2.0 JRA (2024-02-13): Revamped error handling.
 - 1.1.1 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text in send_job_notification in MDWJob.
 - 1.1.0 JRA (2024-02-02): Replaced tabulate.tabulate with pyjra.formatting.tabulate. Added mdw_basic_query_builder.
@@ -43,8 +44,7 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 """
 from pyjra.logger import LOG
 
-from pyjra.formatting import dataframe_to_html
-from pyjra.formatting import tabulate
+from pyjra.utilities import Tabular
 from pyjra.sql import SQLHandler
 from pyjra.emailer import EmailHandler
 from pyjra.azureblobstore import AzureBlobHandler
@@ -294,9 +294,9 @@ class MDWJob:
     """
     ## MDWJob
 
-    Version: 2.0
+    Version: 2.1
     Authors: JRA
-    Date: 2024-02-13
+    Date: 2024-02-16
 
     #### Explanation:
     Handles jobs in an MDW.
@@ -344,6 +344,7 @@ class MDWJob:
     >>> del source_control
 
     #### History:
+    - 2.1 JRA (2024-02-16): Began Tabular implementation and fixed a bug in __init__.
     - 2.0 JRA (2024-02-13): Revamped error handling.
     - 1.1 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text in send_job_notification.
     - 1.0 JRA (2024-01-30): "Initial" version (there have been so many developments, but this is when I'm writing the docstrings).
@@ -390,9 +391,9 @@ class MDWJob:
         """
         ### __init__
 
-        Version: 1.1
+        Version: 1.2
         Authors: JRA
-        Date: 2024-02-13
+        Date: 2024-02-16
 
         #### Explanation:
         Initialises the MDWJob, creates a supjob identifier and logs the start of the job.
@@ -408,13 +409,16 @@ class MDWJob:
         >>> MDWJob("source_000_aspect", pyjra.sql.SQLHandler(environment = "dev"))
 
         #### History:
+        - 1.2 JRA (2024-02-16): Fixed a bug where self.supjob_name was accessed before assignment.
         - 1.1 JRA (2024-02-13): The instance supjob name and id is now set by supjob_start.
         - 1.0 JRA (2024-01-30): Initial version.
         """
         self.mdw = mdw
-        self.supjob_start(supjob_name)
-        self.job_id = None
+        self.supjob_name = None
+        self.supjob_id = None
         self.job_name = None
+        self.job_id = None
+        self.supjob_start(supjob_name)
         return
     
     def __str__(self):
@@ -1082,12 +1086,16 @@ SELECT @error AS [error_detail]
         #### History: 
         - 1.0 JRA (2024-01-30): Initial version.
         """
+        LOG.info(f"Resetting container {container} on {azure_storage}...")
         filenames = azure_storage.get_blob_names(container)
         filenames = [filename for filename in filenames if filename.startswith(folder) and filename.count("/") > 1]
         if files is not None:
             files = [files] if isinstance(files, str) else files
             filenames = [filename for filename in filenames if filename in files]
+        if len(filenames) == 0:
+            LOG.warning("No files found to reset.")
         self.job_start(job_name, '; '.join(filenames) if len(filenames) > 0 else None)
+        LOG.info("Resetting the following files:\n{}".format('; '.join(filenames)))
         for filename in filenames:
             azure_storage.rename_blob(container, filename, folder + "/" + filename.split("/")[-1])
         self.job_end('Complete')
@@ -1150,9 +1158,9 @@ SELECT @error AS [error_detail]
         """
         ### send_job_notification
 
-        Version: 1.2
+        Version: 1.3
         Authors: JRA
-        Date: 2024-02-08
+        Date: 2024-02-16
 
         #### Explanation:
         Ends the job and collects log information from the MDW to send as an email.
@@ -1171,13 +1179,13 @@ SELECT @error AS [error_detail]
         >>> source_control.send_job_notification("info@euler.net", str(LOG))
         
         #### History:
+        - 1.3 JRA (2024-02-16): Began implementation of pyjra.utilities.Tabular.
         - 1.2 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text.
         - 1.1 JRA (2024-02-01): Fixed a bug where supjob name is nullified before subject header is written.
         - 1.0 JRA (2024-01-30): Initial version.
         """
         LOG.info(f'Ending and retrieving MDW log information for job {self}.')
         subject = f'Job Report for {self.__str__()}'
-        self.supjob_end()
         job_log = self.mdw.select_to_dataframe(
             f"""
 SELECT [jd].[description] AS [Name],
@@ -1200,12 +1208,10 @@ WHERE [jd].[jobid] = '{self.supjob_id}'
 ORDER BY [jd].[startdate] ASC
             """
         )
-
-        job_log = job_log.set_index('Name')
+        self.supjob_end()
+        job_log = Tabular(data = job_log, name = subject)
         LOG.info("Writing log information to HTML.")
-        body_html = dataframe_to_html(
-            job_log, 
-            gradient_cols = [], 
+        body_html = job_log.to_html(
             colours = {
                 'main': '#380435', 
                 'black': '#092318', 
@@ -1219,7 +1225,7 @@ ORDER BY [jd].[startdate] ASC
             }
         )
 
-        body_alt_text = tabulate([job_log.columns.to_list()] + job_log.values.tolist())
+        body_alt_text = str(Tabular)
 
         notifier = EmailHandler(environment = 'notifications')
         notifier.send_email(

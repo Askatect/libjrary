@@ -9,8 +9,8 @@ Date: 2024-02-12
 Contains the sqlhandler class for operating on SQL Server databases.
 
 #### Requirements:
-- pyjap.logger.LOG: For logging.
-- pyjap.utilities.extract_param: For reading parameter values from connection strings.
+- pyjra.logger.LOG: For logging.
+- pyjra.utilities.extract_param: For reading parameter values from connection strings.
 - pandas: For DataFrames.
 - keyring: For storing and retrieving of keys.
 - pyodbc: To interface with the database.
@@ -20,16 +20,16 @@ Contains the sqlhandler class for operating on SQL Server databases.
 - SQLHandler (class): Operates on SQL Server databases.
 
 #### Usage:
->>> from pyjap.sql import SQLHandler
+>>> from pyjra.sql import SQLHandler
 
 #### History:
 - 2.0 JRA (2024-02-12): Revamped error handling.
 - 1.1 JRA (2024-02-09): Added retry_wait.
 - 1.0 JRA (2024-02-08): Initial version.
 """
-from pyjap.logger import LOG
+from pyjra.logger import LOG
 
-from pyjap.utilities import extract_param
+from pyjra.utilities import extract_param
 
 import pandas as pd
 import keyring as kr
@@ -87,7 +87,7 @@ class SQLHandler:
         - With columns and column metadata.
         - Enforceable sizes (make sure all rows are the same length).
         - Mitigates pandas requirement.
-        - Could be used across pyjap?
+        - Could be used across pyjra?
         - Give it the pretty tabulator as a method.
         - Change the dataframe_to_html to use this class.
     - Add a execute query method that returns a dictionary representing the first row. Would be useful for a list of values or parameters, such as the weekly summary for func-personal.

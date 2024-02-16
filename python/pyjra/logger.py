@@ -6,7 +6,7 @@ Authors: JRA
 Date: 2024-02-13
 
 #### Explanation: 
-Use the LOG constant for standardised logging across pyjap.
+Use the LOG constant for standardised logging across pyjra.
 
 #### Requirements:
 - logging: Python's built-in logging package is used as a basis.
@@ -15,10 +15,10 @@ Use the LOG constant for standardised logging across pyjap.
 
 #### Artefacts:
 - Logger (class): Child class of logging.Logger.
-- LOG (pyjap.logger.Logger): The rocemmended instance of the pyjap.logger.Logger to use.
+- LOG (pyjra.logger.Logger): The rocemmended instance of the pyjra.logger.Logger to use.
 
 #### Usage: 
->>> from pyjap.logger import LOG
+>>> from pyjra.logger import LOG
 >>> LOG.print_to_console()
 >>> LOG.info("Using the log.")
 
@@ -40,7 +40,7 @@ class Logger(logging.Logger):
     Date: 2024-02-13
 
     #### Explanation:
-    Use the LOG constant for standardised logging across pyjap.
+    Use the LOG constant for standardised logging across pyjra.
 
     #### Artefacts:
     - name (str): The name of the logger.
@@ -165,7 +165,7 @@ class Logger(logging.Logger):
         Use this method to have the logger print to the console.
 
         #### Parameters:
-        - formatter (logging.Formatter): The formatter to use. Defaults to the pyjap standard.
+        - formatter (logging.Formatter): The formatter to use. Defaults to the pyjra standard.
         - strm: The stream to write to. Defaults to stderr.
 
         #### Usage:
@@ -241,7 +241,7 @@ Authors: JRA
 Date: 2024-02-13
 
 #### Explanation:
-Use the LOG constant for standardised logging across pyjap.
+Use the LOG constant for standardised logging across pyjra.
 
 #### Artefacts:
 - name (str): The name of the logger.

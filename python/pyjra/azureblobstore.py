@@ -9,8 +9,8 @@ Date: 2024-02-06
 Contains the AzureBlobHandler class for handling Azure blobs.
 
 #### Requirements:
-- pyjap.logger: Handles logging of processes.
-- pyjap.utilities.extract_param: Reads parameters from connection strings.
+- pyjra.logger: Handles logging of processes.
+- pyjra.utilities.extract_param: Reads parameters from connection strings.
 - keyring: For storage and retrieval of keys.
 - pandas: The DataFrame can be used as a storage medium.
 - io.StringIO: For streaming.
@@ -20,14 +20,14 @@ Contains the AzureBlobHandler class for handling Azure blobs.
 - AzureBlobHandler (class): Handles Azure blobs.
 
 #### Usage:
->>> from pyjap.azureblobstore import AzureBlobHandler
+>>> from pyjra.azureblobstore import AzureBlobHandler
 
 #### History:
 - 1.0 JRA (2024-02-06): Initial version.
 """
-from pyjap.logger import LOG
+from pyjra.logger import LOG
 
-from pyjap.utilities import extract_param
+from pyjra.utilities import extract_param
 
 import keyring as kr
 import pandas as pd

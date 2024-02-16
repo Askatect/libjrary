@@ -227,6 +227,104 @@ def tabulate(table: list[tuple[str]], header: int = 1, null: str = '', name: str
         tabular += (widths[c] + 2)*'═' + ('' if c == col_count - 1 else '╧')
     return tabular + '╛'
 
+def format_json(json: str) -> str:
+    """
+    ### format_json
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-02-16
+
+    #### Explanation:
+    Formats a JSON string into a pretty format.
+
+    #### Parameters:
+    - json (str): The JSON string to format.
+
+    #### Returns:
+    - json (str): The formatted JSON string.
+
+    #### Usage:
+    >>> format_json('{"name": "Hollow Knight", "age": 6, "platforms": ["Nintendo", "Xbox", "PlayStation", "PC"], "multiplayer": false, "dreamers": {"Lurien": "watcher", "Monomon": "teacher", "Herrah": "beast"}}')
+    '''
+    {
+        "name": "Hollow Knight",
+        "age": 6,
+        "platforms": [
+            "Nintendo",
+            "Xbox",
+            "PlayStation",
+            "PC"
+        ],
+        "multiplayer": false,
+        "dreamers": {
+            "Lurien": "watcher",
+            "Monomon": "teacher",
+            "Herrah": "beast"
+        }
+    }
+    '''
+
+    #### History:
+    - 1.0 JRA (2024-02-16): Initial version (based on pyjra.formatting.jsonformatterv2).
+    """
+    LOG.info("Cleaning JSON and identifying terms...")
+    json = json.replace('\n', '').replace('\t', '')
+    json_words = []
+    word = ''
+    string = False
+    for char in json:
+        if char == '"' and not string:
+            string = True
+            word += char
+        elif string:
+            word += char
+            if char == '"':
+                string = False
+                json_words.append(word)
+                word = ''
+        elif char in ('{', '}', '[', ']', ':', ','):
+            json_words.append(word)
+            word = ''
+            json_words.append(char)
+        elif char == ' ':
+            continue
+        else:
+            word += char
+
+    LOG.info('Formatting the JSON...')
+    json = ''
+    levels = []
+    value = False
+    for word in json_words:
+        if len(word) == 0:
+            continue
+        elif word in ('{', '['):
+            if value:
+                value = False
+                json += word
+            else:
+                json += '\n' + len(levels)*'\t' + word
+            if word == '{':
+                levels.append('object')
+            else:
+                levels.append('array')
+        elif word in ('}', ']'):
+            value = False
+            levels.pop()
+            json += '\n' + len(levels)*'\t' + word
+        elif word == ':':
+            value = True
+            json += ': '
+        elif value or word == ',':
+            value = False
+            json += word
+        else:
+            json += '\n' + len(levels)*'\t' + word
+
+    LOG.info('Returning formatted JSON.')
+    return json
+
 def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search: bool = True):
     if case_insensitive_search:
         search_string = string.lower()
@@ -242,9 +340,9 @@ def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search
     return string[prefix_loc:suffix_loc]
 
 def validate_date(datestring: str, format: str = '%Y-%m-%d'):
-    import datetime
+    from datetime import datetime
     try:
-        date = datetime.datetime.strptime(datestring, format)
+        date = datetime.strptime(datestring, format)
     except:
         LOG.info(f'String "{datestring}" is not in the format "{format}".')
         return None
@@ -649,7 +747,3 @@ class Tabular():
             html += '\t</tr>\n'
         html += '</table>'
         return html
-    
-test = Tabular([(1, 2, 3), (4, 5, 6), (7, 8, 9)])
-print(test.__repr__())
-print(test.to_html())

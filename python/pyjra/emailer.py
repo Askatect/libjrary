@@ -9,7 +9,7 @@ Date: 2024-02-12
 Contains the EmailHandler class for sending emails.
 
 #### Requirements:
-- pyjap.logger: Handles logging of processes.
+- pyjra.logger: Handles logging of processes.
 - smtplib: To connect to SMTP.
 - os.path.basename: Retrieve basenames of any files to attach to emails.
 - email.mime.multipart.MIMEMultipart: For building emails.
@@ -20,13 +20,13 @@ Contains the EmailHandler class for sending emails.
 - EmailHandler (class): Handles emails.
 
 #### Usage:
->>> from pyjap.emailer import EmailHandler
+>>> from pyjra.emailer import EmailHandler
 
 #### History:
 - 1.1 JRA (2024-02-12): Revamped error handling and added __del__ to EmailHandler.
 - 1.0 JRA (2024-02-07): Initial version.
 """
-from pyjap.logger import LOG
+from pyjra.logger import LOG
 
 import smtplib
 from os.path import basename
