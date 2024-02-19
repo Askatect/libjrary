@@ -1,9 +1,9 @@
 """
 # sql.py
 
-Version: 2.0
+Version: 3.0
 Authors: JRA
-Date: 2024-02-12
+Date: 2024-02-19
 
 #### Explanation:
 Contains the sqlhandler class for operating on SQL Server databases.
@@ -23,6 +23,7 @@ Contains the sqlhandler class for operating on SQL Server databases.
 >>> from pyjra.sql import SQLHandler
 
 #### History:
+- 3.0 JRA (2024-02-19): SQLHandler v3.0.
 - 2.0 JRA (2024-02-12): Revamped error handling.
 - 1.1 JRA (2024-02-09): Added retry_wait.
 - 1.0 JRA (2024-02-08): Initial version.
@@ -30,6 +31,7 @@ Contains the sqlhandler class for operating on SQL Server databases.
 from pyjra.logger import LOG
 
 from pyjra.utilities import extract_param
+from pyjra.utilities import Tabular
 
 import pandas as pd
 import keyring as kr
@@ -40,9 +42,9 @@ class SQLHandler:
     """
     ## SQLHandler
         
-    Version: 2.0
+    Version: 3.0
     Authors: JRA
-    Date: 2024-02-12
+    Date: 2024-02-19
 
     #### Explanation:
     Operates on SQL Server databases.
@@ -52,14 +54,6 @@ class SQLHandler:
     - __params (dict): Connection parameters.
     - connected (bool): If true, indicates a successful active connection.
     - conn (pyodbc.Connection): Connection object.
-    - description (Tuple[Tuple[str, Any, int, int, int, int, bool]]): Of a pyodbc connection:
-        - Name of the column or alias.
-        - Type code, the Python-equivalent class of the column, such as  str for varchar.
-        - Display size (pyodbc does not set this value).
-        - Internal size in bytes.
-        - Precision
-        - Scale
-        - Nullability.
     - cursor (pyodbc.Cursor)
     - __init__ (func): Initialises the handler.
     - __str__ (func): Returns the server and database of the handler.
@@ -69,30 +63,20 @@ class SQLHandler:
     - rollback (func): Rolls back the current transaction.
     - commit (func): Commits the current transaction.
     - close_connection (func): Closes the open connection.
-    - select_to_dataframe (func): Executes a DQL script and returns the result as a DataFrame.
-    - execute_query (func): Executes a SQL query.
-    - query_columns (func): Retrieves the columns of a query or the most recently executed query.
+    - execute_query (func): Executes a SQL query and returns output - if any - as a pyjra.utilities.Tabular.
     - insert (func): Inserts data into a specified table.
     - create_table (func): Creates a table in the database.
 
     #### Usage:
     >>> executor = SQLHandler(environment = 'dev')
-    >>> executor.execute_query("SELECT 'value' AS [column]")
-    [('value')]
-    >>> executor.query_columns()
-    ['column']
+    >>> executor.execute_query("SELECT 'value' AS [column]").to_dict(0)
+    {'column': 'value'}
 
     #### Tasklist:
-    - Create a table class?
-        - With columns and column metadata.
-        - Enforceable sizes (make sure all rows are the same length).
-        - Mitigates pandas requirement.
-        - Could be used across pyjra?
-        - Give it the pretty tabulator as a method.
-        - Change the dataframe_to_html to use this class.
     - Add a execute query method that returns a dictionary representing the first row. Would be useful for a list of values or parameters, such as the weekly summary for func-personal.
 
     #### History:
+    - 3.0 JRA (2024-02-19): Implemented Tabular and removed select_to_dataframe and query_columns.
     - 2.0 JRA (2024-02-12): Revamped error handling.
     - 1.1 JRA (2024-02-09): Added retry_wait.
     - 1.0 JRA (2024-02-09): Initial version.
@@ -405,50 +389,49 @@ class SQLHandler:
         LOG.info(f"Closed connection to {str(self)}.")
         return
     
-    def select_to_dataframe(self, query: str, values: tuple = None) -> pd.DataFrame:
-        """
-        ### select_to_dataframe
+    # def select_to_dataframe(self, query: str, values: tuple = None) -> pd.DataFrame:
+    #     """
+    #     ### select_to_dataframe
 
-        Version: 1.1
-        Authors: JRA
-        Date: 2024-02-12
+    #     Version: 1.2
+    #     Authors: JRA
+    #     Date: 2024-02-19
 
-        #### Explanation:
-        Executes a DQL script and returns the result as a DataFrame.
+    #     #### Explanation:
+    #     Executes a DQL script and returns the result as a DataFrame.
 
-        #### Requirements:
-        - SQLHandler.connect_to_mssql
+    #     #### Requirements:
+    #     - SQLHandler.connect_to_mssql
 
-        #### Parameters:
-        - query (str): The query to run.
-        - values (tuple): The values to substitute into the query. Defaults to None.
+    #     #### Parameters:
+    #     - query (str): The query to run.
+    #     - values (tuple): The values to substitute into the query. Defaults to None.
 
-        #### Returns:
-        - (pandas.DataFrame): Output of query.
+    #     #### Returns:
+    #     - (pandas.DataFrame): Output of query.
 
-        #### Usage:
-        >>> executor.select_to_dataframe("SELECT 'value' AS [column]")
-        <pandas.DataFrame>
+    #     #### Usage:
+    #     >>> executor.select_to_dataframe("SELECT 'value' AS [column]")
+    #     <pandas.DataFrame>
 
-        #### History:
-        - 1.1 JRA (2024-02-12): Error handling moved to connect_to_mssql.
-        - 1.0 JRA (2024-02-09): Initial version.
-        """
-        if not self.connected:
-            self.connect_to_mssql(auto_commit = False)
-        LOG.info(f"Generating dataframe against {str(self)}.")
-        results = self.execute_query(query, values, commit = False)
-        # selection = pd.read_sql_query(query, con=self.conn)
-        # selection = pd.DataFrame.from_records(results, columns = self.query_columns())
-        return pd.DataFrame((tuple(row) for row in results), columns = self.query_columns())
+    #     #### History:
+    #     - 1.2 JRA (2024-02-19): Implemented Tabular.
+    #     - 1.1 JRA (2024-02-12): Error handling moved to connect_to_mssql.
+    #     - 1.0 JRA (2024-02-09): Initial version.
+    #     """
+    #     if not self.connected:
+    #         self.connect_to_mssql(auto_commit = False)
+    #     LOG.info(f"Generating dataframe against {str(self)}.")
+    #     results = self.execute_query(query, values, commit = False)
+    #     return results.to_dataframe()
     
-    def execute_query(self, query: str, values: tuple = None, commit: bool = True) -> None|list[pyodbc.Row]:
+    def execute_query(self, query: str, values: tuple = None, commit: bool = True, name: str = None) -> None|Tabular:
         """
         ### execute_query
 
-        Version: 2.0
+        Version: 3.0
         Authors: JRA
-        Date: 2024-02-12
+        Date: 2024-02-19
 
         #### Explanation:
         Executes a SQL query.
@@ -461,14 +444,16 @@ class SQLHandler:
         - query (str): The query to run.
         - values (tuple): The values to substitute into the query. Defaults to None.
         - commit (bool): If true, the query is committed.
+        - name (str): The name to assign to the results.
 
         #### Returns:
-        - selection (None|list[pyodbc.Row]): The output selection of the query.
+        - selection (None|Tabular): The output selection of the query.
 
         #### Usage:
         >>> executor.execute_query("SELECT 'value' AS [column]")
 
         #### History:
+        - 3.0 JRA (2024-02-19): Refactored to use Tabular.
         - 2.0 JRA (2024-02-12): Revamped error handling.
         - 1.0 JRA (2024-02-09): Initial version.
         """
@@ -497,59 +482,76 @@ class SQLHandler:
             LOG.critical(f"Unexpected {type(e)} error occurred whilst retrieving query results on {self}. {e}")
             raise
 
+        try:
+            columns = [col[0] for col in self.cursor.description]
+            datatypes = [col[1] for col in self.cursor.description]
+        except AttributeError as e:
+            LOG.warning(f"No query results to read metadata of.")
+            columns = None
+            datatypes = None
+        except Exception as e:
+            LOG.critical(f"Unexpected {type(e)} error occurred whilst retrieving query results on {self}. {e}")
+            raise
+
+        selection = Tabular(
+            data = selection, 
+            columns = columns,
+            datatypes = datatypes,
+            name = name
+        )
+
         self.close_connection(commit)
         return selection
     
-    def query_columns(self, query: str = None, values: tuple = None):
-        """
-        ### query_columns
+    # def query_columns(self, query: str = None, values: tuple = None):
+    #     """
+    #     ### query_columns
 
-        Version: 2.0
-        Authors: JRA
-        Date: 2024-02-12
+    #     Version: 2.0
+    #     Authors: JRA
+    #     Date: 2024-02-12
 
-        #### Explanation:
-        Retrieves the columns of a query or the most recently executed query.
+    #     #### Explanation:
+    #     Retrieves the columns of a query or the most recently executed query.
 
-        #### Requirements:
-        - SQLHandler.execute_query
+    #     #### Requirements:
+    #     - SQLHandler.execute_query
 
-        #### Parameters:
-        - query (str): The query to execute if needed. Defaults to the previous query.
-        - values (tuple): The values to substitute into the query. Defaults to previous query.
+    #     #### Parameters:
+    #     - query (str): The query to execute if needed. Defaults to the previous query.
+    #     - values (tuple): The values to substitute into the query. Defaults to previous query.
 
-        #### Returns:
-        - cols (list[str]): A list of columns of the output of the select query.
+    #     #### Returns:
+    #     - cols (list[str]): A list of columns of the output of the select query.
 
-        #### Usage:
-        >>> executor.query_columns()
-        ['column']
+    #     #### Usage:
+    #     >>> executor.query_columns()
+    #     ['column']
 
-        #### History:
-        - 2.0 JRA (2024-02-09): Revamped error handling.
-        - 1.0 JRA (2024-02-09): Initial version.
-        """
-        if query is not None:
-            self.execute_query(query, values, commit = False)
+    #     #### History:
+    #     - 2.0 JRA (2024-02-09): Revamped error handling.
+    #     - 1.0 JRA (2024-02-09): Initial version.
+    #     """
+    #     if query is not None:
+    #         self.execute_query(query, values, commit = False)
 
-        try:
-            cols = [col[0] for col in self.description]
-        except TypeError as e:
-            LOG.warning(f"No query description available from {self}. {e}")
-            raise
-        except Exception as e:
-            LOG.critical(f"Unexpected {type(e)} error occurred when reading cursor description from {self}. {e}")
-            raise
-        else:
-            return cols
+    #     try:
+    #         cols = [col[0] for col in self.description]
+    #     except TypeError as e:
+    #         LOG.warning(f"No query description available from {self}. {e}")
+    #         raise
+    #     except Exception as e:
+    #         LOG.critical(f"Unexpected {type(e)} error occurred when reading cursor description from {self}. {e}")
+    #         raise
+    #     else:
+    #         return cols
 
     def insert(
         self, 
         schema: str,  
-        table: str, 
-        cols: list[str] = None, 
-        values: list[list|tuple] = None,
-        df: pd.DataFrame = None,
+        table: str,
+        data: Tabular|pd.DataFrame|list[tuple],
+        columns: list[str] = None, 
         prescript: str = None,
         postscript: str = None,
         fast_execute: bool = True,
@@ -560,9 +562,9 @@ class SQLHandler:
         """
         ### insert
 
-        Version: 2.0
+        Version: 2.1
         Authors: JRA
-        Date: 2024-02-12
+        Date: 2024-02-19
 
         #### Explanation:
         Inserts data into a specified table.
@@ -575,9 +577,8 @@ class SQLHandler:
         #### Parameters:
         - schema (str): The schema of the object to insert to.
         - table (str): The table to insert to.
-        - cols (list[str]): The columns to insert to. Defaults to all columns of existing table. Defaults to None.
-        - values (list[list|tuple]): The values to be inserted. Defaults to None.
-        - df (pandas.DataFrame): Instead of providing columns and values, a dataframe can be used for insert. Defaults to None.
+        - data (Tabular|pandas.DataFrame|list[tuple]): The values to be inserted.
+        - columns (list[str]): The columns to insert to. Defaults to all columns of existing table. Defaults to None.
         - prescript (str): A script to run prior to the insert. Defaults to None.
         - postcript (str): A script to run after the insert. Defaults to None.
         - fast_execute (bool): If true, fast execute is utilised. Failed inserts are retried without fast execute. Defaults to true.
@@ -592,24 +593,27 @@ class SQLHandler:
         - Add functionality to retry inserts without fast_executemany - not sure which error warrants the retry.
 
         #### History:
+        - 2.1 JRA (2024-02-19): Implemented Tabular.
         - 2.0 JRA (2024-02-09): Revamped error handling.
         - 1.0 JRA (2024-02-09): Initial version.
         """
-        if df is None and values is None:
+        if data is None:
             LOG.error("No values given to insert.")
             return
-        elif df is not None:
-            cols = df.columns.to_list()
-            values = df.values.tolist() 
-        elif len(set([len(vals) for vals in values])) != 1:
-            LOG.error("Value vectors must all be the same size.")
-            return
+        elif isinstance(data, pd.DataFrame):
+            data = Tabular(data = data)
+        elif isinstance(data, list):
+            data = Tabular(data = data, columns = columns)
+        elif not isinstance(data, Tabular):
+            error = f"Invalid datatype passed to `data` argument of `SQLHandler.insert`."
+            LOG.error(error)
+            raise ValueError(error)
         
         if not self.connected:
             self.connect_to_mssql(auto_commit = commit)
         
         if auto_create_table:
-            if not self.create_table(table, cols, schema = schema, replace = replace_table, commit = commit):
+            if not self.create_table(table = table, columns = data.columns, schema = schema, replace = replace_table, commit = commit):
                 LOG.error(f"Could not create table for insert.")
                 return
         object_name = self.__schema_table_to_object_name(schema, table)
@@ -622,9 +626,9 @@ class SQLHandler:
 
         LOG.info(f"Inserting into {object_name} on {self}...")
         self.cursor.fast_executemany = fast_execute
-        cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(cols) + '])' if len(cols) > 0 else ''} VALUES ({'?' + (len(values[0]) - 1)*', ?'})"
+        cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(data.columns) + '])' if len(data.columns) > 0 else ''} VALUES ({'?' + (len(data.col_count) - 1)*', ?'})"
         try:
-            self.cursor.executemany(cmd, values)
+            self.cursor.executemany(cmd, data.data)
         except pyodbc.ProgrammingError as e:
             LOG.error(f"Failed to parse script on {self}. {e}")
             raise
@@ -676,9 +680,9 @@ class SQLHandler:
         """
         ### create_table
 
-        Version: 1.0
+        Version: 2.1
         Authors: JRA
-        Date: 2024-02-09
+        Date: 2024-02-19
 
         #### Explanation: 
         Creates a table in the database.
@@ -703,6 +707,7 @@ class SQLHandler:
         >>> executor.create_table('table', ['column'], ['varchar(16)'])
 
         #### History:
+        - 2.1 JRA (2024-02-19): Implemented Tabular.
         - 2.0 JRA (2024-02-12): Revamped error handling.
         - 1.0 JRA (2024-02-09): Initial version.
         """
@@ -711,10 +716,10 @@ class SQLHandler:
 
         if not replace:
             result = self.execute_query(
-                query = "SELECT OBJECT_ID(?)",
+                query = "SELECT OBJECT_ID(?) AS [result]",
                 values = (object_name),
                 commit = False
-            )[0][0]
+            ).to_dict(0)['result']
             if result is not None:
                 LOG.info(f"The table {object_name} already exists.")
                 return 1
@@ -727,7 +732,7 @@ class SQLHandler:
         if datatype_count >= col_count:
             datatypes = datatypes[:col_count]
         else:
-            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) FROM sys.types WHERE [system_type_id] = 231", commit = False)[0][0]
+            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2)AS [length] FROM sys.types WHERE [system_type_id] = 231", commit = False).to_dict(0)['length']
             datatypes.extend([f'nvarchar({max_length})']*(col_count - datatype_count))
         
         column_definition = ',\n\t'.join(f"[{col}] {datatype}" for col, datatype in zip(columns, datatypes))

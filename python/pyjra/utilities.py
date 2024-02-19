@@ -677,7 +677,7 @@ class Tabular():
     def to_dataframe(self) -> DataFrame:
         return DataFrame(data = self.data, columns = self.columns)
     
-    def to_dict(self, row: str|int = 1) -> dict:
+    def to_dict(self, row: str|int = 0) -> dict:
         if isinstance(row, str):
             row = self.col_pos(row)
         return dict(zip(self.columns, self.data[row]))

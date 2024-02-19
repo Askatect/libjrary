@@ -1,16 +1,16 @@
 """
 # eulib.py
 
-Version: 1.2.1
+Version: 1.2.2
 Authors: JRA
-Date: 2024-02-16
+Date: 2024-02-19
 
 #### Explanation:
 Library of functions and classes that might be useful for Euler DataOps and Analytics.
 
 #### Requirements:
 - pyjra.logger: Handles logging of processes.
-- pyjra.formatting.dataframe_to_html: Converts a dataframe to a pretty HTML table.
+- pyjra.utilities.Tabular: Table class.
 - pyjra.email: Email handler.
 - pyjra.sql: SQL DB handler.
 - pyjra.azureblobstore: Azure blob storage handler.
@@ -18,7 +18,6 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - uuid: For generating unique identifiers.
 - re: Regular expressions.
 - datetime.datetime
-- pyjra.formatting.tabulate: For pretty text tables.
 
 #### Artefacts:
 - validate_string (func): Validates a given string against a given regular expression, and can also verify a single datetime within the string using named regular expression groups.
@@ -36,6 +35,7 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - Is standardiser necessary?
 
 #### History:
+- 1.2.2 JRA (2024-02-19): More Tabular implementation for MDWJob.
 - 1.2.1 JRA (2024-02-16): In the MDWJob class, began Tabular implementation and fixed a bug in __init__.
 - 1.2.0 JRA (2024-02-13): Revamped error handling.
 - 1.1.1 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text in send_job_notification in MDWJob.
@@ -294,9 +294,9 @@ class MDWJob:
     """
     ## MDWJob
 
-    Version: 2.1
+    Version: 2.2
     Authors: JRA
-    Date: 2024-02-16
+    Date: 2024-02-19
 
     #### Explanation:
     Handles jobs in an MDW.
@@ -343,7 +343,11 @@ class MDWJob:
         )
     >>> del source_control
 
+    Tasklist:
+    - Remove dependency on pandas DataFrame in __stage_blob by using Tabular.
+
     #### History:
+    - 2.2 JRA (2024-02-19): More Tabular implementation.
     - 2.1 JRA (2024-02-16): Began Tabular implementation and fixed a bug in __init__.
     - 2.0 JRA (2024-02-13): Revamped error handling.
     - 1.1 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text in send_job_notification.
@@ -788,9 +792,9 @@ class MDWJob:
         """
         ### __stage_blob
 
-        Version: 1.1
+        Version: 1.2
         Authors: JRA
-        Date: 2024-02-13
+        Date: 2024-02-19
 
         #### Explanation:
         Inserts a CSV file into the "stg" schema of the MDW.
@@ -804,6 +808,7 @@ class MDWJob:
         - filename (str)
 
         #### History:
+        - 1.2 JRA (2024-02-19): Made compatible with SQLHandler v3.0.
         - 1.1 JRA (2024-02-13): Job is not started at the top of the method. Removed job_id and job_name parameters.
         - 1.0 JRA (2024-01-30): Initial version.
         """
@@ -831,7 +836,7 @@ class MDWJob:
         del cols
 
         LOG.info(f'Staging file "{filename}" in the MDW.')
-        self.mdw.insert('stg', table, df = df, replace_table = True)
+        self.mdw.insert('stg', table, data = df, replace_table = True)
         del df
         return
     
@@ -854,10 +859,11 @@ class MDWJob:
         - (None|str): Details of error are returned, or None if structure is compliant.
 
         #### History:
+        - 1.2 JRA (2024-02-19): Implemented Tabular.
         - 1.1 JRA (2024-02-13): Job is not started at the top of the method. Removed job_id and job_name parameters.
         - 1.0 JRA (2024-01-30): Initial version.
         """
-        return self.mdw.execute_query("EXECUTE [integration].[usp_structure_compliance] @job = ?, @jobid = ?, @schema = ?, @error = '', @print = 0, @display = 1", values = (self.job_name, self.job_id, 'stg'))[0][0]
+        return self.mdw.execute_query("EXECUTE [integration].[usp_structure_compliance] @job = ?, @jobid = ?, @schema = ?, @error = '', @print = 0, @display = 1", values = (self.job_name, self.job_id, 'stg')).to_dict(0)[0]
     
     def __add_artificial_key_file_id(self, filename: str = None):
         """
@@ -929,6 +935,7 @@ class MDWJob:
         >>> source_control.cleaning_transforms("source_020_cleaning")
 
         #### History:
+        - 2.1 JRA (2024-02-19): Implemented Tabular.
         - 2.0 JRA (2024-02-13): Revamped error handling.
         - 1.0 JRA (2024-01-30): Initial version.
         """
@@ -942,7 +949,7 @@ EXECUTE [integration].[usp_cleaning] @jobname = ?, @jobid = ?, @error = @error O
 SELECT @error AS [error_detail]
                 """, 
                 values = (self.job_name, self.job_id)
-            )[0][0]
+            ).to_dict(0)[0]
         except Exception as e:
             self.job_end('Failure', f'Unexpected Python {type(e)} error occurred during cleaning transformations. {e}')
             raise
@@ -1158,9 +1165,9 @@ SELECT @error AS [error_detail]
         """
         ### send_job_notification
 
-        Version: 1.3
+        Version: 1.4
         Authors: JRA
-        Date: 2024-02-16
+        Date: 2024-02-19
 
         #### Explanation:
         Ends the job and collects log information from the MDW to send as an email.
@@ -1179,6 +1186,7 @@ SELECT @error AS [error_detail]
         >>> source_control.send_job_notification("info@euler.net", str(LOG))
         
         #### History:
+        - 1.4 JRA (2024-02-19): Implemented Tabular.
         - 1.3 JRA (2024-02-16): Began implementation of pyjra.utilities.Tabular.
         - 1.2 JRA (2024-02-08): Fixed a bug with tabulating data for the body_alt_text.
         - 1.1 JRA (2024-02-01): Fixed a bug where supjob name is nullified before subject header is written.
@@ -1186,8 +1194,7 @@ SELECT @error AS [error_detail]
         """
         LOG.info(f'Ending and retrieving MDW log information for job {self}.')
         subject = f'Job Report for {self.__str__()}'
-        job_log = self.mdw.select_to_dataframe(
-            f"""
+        job_report_query = f"""
 SELECT [jd].[description] AS [Name],
     [jd].[id] AS [Subjob ID],
     CONVERT(char(23), [jd].[startdate], 21) AS [Subjob Start],
@@ -1207,11 +1214,10 @@ FROM [log].[jobdetail] AS [jd]
 WHERE [jd].[jobid] = '{self.supjob_id}'
 ORDER BY [jd].[startdate] ASC
             """
-        )
         self.supjob_end()
-        job_log = Tabular(data = job_log, name = subject)
+        job_report_data = self.mdw.execute_query(query = job_report_query, name = subject)
         LOG.info("Writing log information to HTML.")
-        body_html = job_log.to_html(
+        body_html = job_report_data.to_html(
             colours = {
                 'main': '#380435', 
                 'black': '#092318', 
@@ -1225,7 +1231,7 @@ ORDER BY [jd].[startdate] ASC
             }
         )
 
-        body_alt_text = str(Tabular)
+        body_alt_text = str(job_report_data)
 
         notifier = EmailHandler(environment = 'notifications')
         notifier.send_email(
