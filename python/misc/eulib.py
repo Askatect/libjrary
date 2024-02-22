@@ -1,7 +1,7 @@
 """
 # eulib.py
 
-Version: 1.2.2
+Version: 1.2.3
 Authors: JRA
 Date: 2024-02-19
 
@@ -35,6 +35,7 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - Is standardiser necessary?
 
 #### History:
+- 1.2.3 JRA (2024-02-22): MDWJob v2.3.
 - 1.2.2 JRA (2024-02-19): More Tabular implementation for MDWJob.
 - 1.2.1 JRA (2024-02-16): In the MDWJob class, began Tabular implementation and fixed a bug in __init__.
 - 1.2.0 JRA (2024-02-13): Revamped error handling.
@@ -119,184 +120,13 @@ def validate_string(string: str, target: str) -> tuple[str, None|str]:
     else:
         return (string, None)
 
-def validate_email(original_email: str, domain_check: bool = False) -> tuple[str, None|str]:
-    """
-    ### validate_email
-
-    Version: 1.1
-    Authors: JRA
-    Date: 2024-02-12
-
-    #### Explanation:
-    Validates an email.
-
-    #### Requirements:
-    - email_validator.validate_email
-
-    #### Parameters:
-    - original_email (str): Email to be validated.
-    - domain_check (bool): If true, the domain of the email is verified. Defaults to false.
-
-    #### Returns:
-    - (str): If valid, the normalised email is returned, else the input email is returned.
-    - (None|str): Any errors in the email are presented here, None if the email is valid.
-
-    #### Usage:
-    >>> validate_email(
-            original_email = "JRA.Euler.notifications@gmail.com",
-            domain_check = True
-        )
-    ("JRA.Euler.notifications@gmail.com", None)
-
-    #### History:
-    - 1.1 JRA (2024-02-12): Generic exceptions are no longer ignored.
-    - 1.0 JRA (2024-01-30): Initial version.
-    """
-    import email_validator
-    try:
-        email = email_validator.validate_email(original_email, check_deliverability = domain_check)
-    except (email_validator.exceptions_types.EmailNotValidError, email_validator.exceptions_types.EmailSyntaxError, email_validator.exceptions_types.EmailUndeliverableError) as e:
-        return (original_email, str(e))
-    else:
-        return (email.normalized, None)
-        
-def validate_postcode(original_postcode: str, country: str = "GB") -> tuple[str, None|str]:
-    """
-    ### validate_postcode
-
-    Version: 1.1
-    Authors: JRA
-    Date: 2024-02-12
-
-    #### Explanation:
-    Validates UK postcodes.
-
-    #### Requirements:
-    - postcode_validator.uk.uk_postcode_validator.UKPostcode
-
-    #### Parameters: 
-    - original_postcode (str): The postcode to be validated.
-    - country (str): The country code of the postcode. Defauts to "GB".
-
-    #### Returns:
-    - (str): The postcode in standard format if validated, the original if not.
-    - (None|str): Details of errors during validation, None if valid.
-
-    #### Usage:
-    >>> validate_postcode("wa11sr")
-    "WA1 1SR"
-
-    #### Tasklist:
-    - Might be worth having a mapping from country names to codes.
-
-    #### History:
-    - 1.1 JRA (2024-02-12): Generic exceptions are no longer ignored.
-    - 1.0 JRA (2024-01-30): Initial version.
-    """
-    from postcode_validator.uk.uk_postcode_validator import UKPostcode
-    import postcode_validator.Exceptions.exceptions as postcodeexceptions
-    if country == "UK":
-        country = "GB"
-    if country != "GB":
-        return (original_postcode, "Cannot validate postcodes outside of GB.")
-    try:
-        postcode = UKPostcode(original_postcode)
-    except postcodeexceptions.ValidationError as e:
-        return (original_postcode, str(e))
-    else:
-        return (postcode.postcode, None)
-    
-def validate_phone(original_phone: str, country: str = "GB") -> tuple[str, None|str]:
-    """
-    ### validate_phone
-
-    Version: 1.1
-    Authors: JRA
-    Date: 2024-02-12
-
-    #### Explanation: 
-    Validates phone numbers.
-
-    #### Requirements:
-    - phonenumbers
-
-    #### Parameters:
-    - original_phone (str): Phone number to validate.
-    - country (str): Country code of phone number. Defaults to "GB".
-
-    #### Returns:
-    - (str): Appopriately formatted phone number if valid, the original if not.
-    - (None|str): Details of errors during validation, None if valid.
-
-    #### Usage:
-    >>> validate_phone("01925644800")
-    ('+441925644800', None)
-
-    #### Tasklist:
-    - Add a parameter to specify output format of phone number.
-    - Might be worth having a mapping from country names to codes.
-
-    #### History:
-    - 1.1 JRA (2024-02-12): Generic exceptions are no longer ignored.
-    - 1.0 JRA (2024-01-30): Initial version.
-    """
-    import phonenumbers
-    try:
-        phone = phonenumbers.parse(original_phone, region = country)
-    except phonenumbers.phonenumberutil.NumberParseException as error:
-        return (original_phone, str(error))
-    else:
-        return ("+" + str(phone.country_code) + str(phone.national_number), None)
-    
-def standardiser(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    ### standardiser
-
-    Version: 1.0
-    Authors: JRA
-    Date: 2024-01-30
-
-    #### Explanation:
-    Applies validate_email, validate_postcode and validate_phone to a given dataframe by looking for columns "phone", "email" or "postcode".
-
-    #### Requirements:
-    - eulib.validate_postcode
-    - eulib.validate_phone
-    - eulib.validate_email
-
-    #### Parameters:
-    - df (pandas.DataFrame): The dataframe to standardise.
-
-    #### Returns:
-    - (pandas.DataFrame): Standadised dataframe.
-
-    #### Tasklist:
-    - Is this really necessary?
-    - Are other fields also worth standardising?
-
-    #### History:
-    - 1.0 JRA (2024-01-30): Initial version.
-    """
-    columns = df.columns.to_list()
-    if 'phone' in columns:
-        LOG.info("Standardising phone numbers...")
-        df[['phone_std', 'phone_error']] = df[['phone', 'country']].apply((lambda x: validate_postcode(x['phone'], x['country'])), axis = 1).to_list()
-    if 'postcode' in columns:
-        LOG.info("Standardising postcodes...")
-        df[['postcode_std', 'postcode_error']] = df[['postcode', 'country']].apply((lambda x: validate_postcode(x['postcode'], x['country'])), axis = 1).to_list()
-    if 'email' in columns:
-        LOG.info("Standardising email addresses...")
-        df[['email_std', 'email_error']] = df['email'].apply((lambda x: validate_postcode(x['email'])), axis = 1).to_list()
-    LOG.info("Standardising complete.")
-    return df
-
 class MDWJob:
     """
     ## MDWJob
 
-    Version: 2.2
+    Version: 2.3
     Authors: JRA
-    Date: 2024-02-19
+    Date: 2024-02-22
 
     #### Explanation:
     Handles jobs in an MDW.
@@ -347,6 +177,7 @@ class MDWJob:
     - Remove dependency on pandas DataFrame in __stage_blob by using Tabular.
 
     #### History:
+    - 2.3 JRA (2024-02-22): __stage_blob v2.0.
     - 2.2 JRA (2024-02-19): More Tabular implementation.
     - 2.1 JRA (2024-02-16): Began Tabular implementation and fixed a bug in __init__.
     - 2.0 JRA (2024-02-13): Revamped error handling.
@@ -792,9 +623,9 @@ class MDWJob:
         """
         ### __stage_blob
 
-        Version: 1.2
+        Version: 2.0
         Authors: JRA
-        Date: 2024-02-19
+        Date: 2024-02-22
 
         #### Explanation:
         Inserts a CSV file into the "stg" schema of the MDW.
@@ -808,6 +639,7 @@ class MDWJob:
         - filename (str)
 
         #### History:
+        - 2.0 JRA (2024-02-22): Refactored to use Tabular.
         - 1.2 JRA (2024-02-19): Made compatible with SQLHandler v3.0.
         - 1.1 JRA (2024-02-13): Job is not started at the top of the method. Removed job_id and job_name parameters.
         - 1.0 JRA (2024-01-30): Initial version.
@@ -815,29 +647,51 @@ class MDWJob:
         table = self.job_name + '_' + self.job_id
 
         LOG.info(f'Retrieving file "{filename}" from "{container}" at {azure_storage}...')
-        df = azure_storage.get_blob_csv_as_dataframe(container, filename, encoding = 'latin1', header = None).map(lambda x: None if pd.isnull(x) else str(x))
+        data = azure_storage.get_blob_as_string(
+            container = container,
+            filename = filename,
+            encoding = 'latin1'
+        )
+        data = Tabular(
+            data = data,
+            row_separator = '\n',
+            col_separator = ',',
+            header = True,
+            name = filename
+        )
+        LOG.info('Retrieved file "{}" with columns:\n{}'.format(filename, '\n'.join(data.columns)))
 
-        df.rename(columns = df.iloc[0], inplace = True)
-        df.drop(df.index[0], inplace = True)
-        cols = [('\n' + str(1 + i) + ': ' + col) for i, col in enumerate(df.columns)]
-        LOG.info(f'Retrieved file "{filename}" with columns: {"".join(cols)}.')
+        LOG.info("Ensuring uniqueness of columns...")
+        for c in range(data.col_count):
+            column = data.columns[c]
+            if data.columns.count(column.lower()) > 1:
+                column += str(data.columns[0:c + 1].count(column.lower()))
+                LOG.info(f"Renaming column: {data.columns[c]} -> {column}.")
+                data.columns[c] = column
 
-        name_map = {col.lower(): [] for col in df.columns if [col.lower() for col in df.columns].count(col.lower()) > 1}
-        if len(name_map) > 0:
-            for col in df.columns:
-                col_lower = col.lower()
-                if col_lower in name_map.keys():
-                    name_map[col_lower].append(col + '_' + str(1 + len(name_map[col_lower])))
-            cols = [('\n' + col_lower + ' -> ' + str(cols)) for col_lower, cols in name_map.items()]
-            LOG.info(f'Renaming duplicate columns: {"".join(cols)}.')
-            df = df.rename(columns = (lambda col: name_map[col.lower()].pop(0) if col.lower() in name_map.keys() else col))
-            del col_lower
-        del name_map
-        del cols
+        # df = azure_storage.get_blob_csv_as_dataframe(container, filename, encoding = 'latin1', header = None).map(lambda x: None if pd.isnull(x) else str(x))
+
+        # df.rename(columns = df.iloc[0], inplace = True)
+        # df.drop(df.index[0], inplace = True)
+        # cols = [('\n' + str(1 + i) + ': ' + col) for i, col in enumerate(df.columns)]
+        # LOG.info(f'Retrieved file "{filename}" with columns: {"".join(cols)}.')
+
+        # name_map = {col.lower(): [] for col in df.columns if [col.lower() for col in df.columns].count(col.lower()) > 1}
+        # if len(name_map) > 0:
+        #     for col in df.columns:
+        #         col_lower = col.lower()
+        #         if col_lower in name_map.keys():
+        #             name_map[col_lower].append(col + '_' + str(1 + len(name_map[col_lower])))
+        #     cols = [('\n' + col_lower + ' -> ' + str(cols)) for col_lower, cols in name_map.items()]
+        #     LOG.info(f'Renaming duplicate columns: {"".join(cols)}.')
+        #     df = df.rename(columns = (lambda col: name_map[col.lower()].pop(0) if col.lower() in name_map.keys() else col))
+        #     del col_lower
+        # del name_map
+        # del cols
 
         LOG.info(f'Staging file "{filename}" in the MDW.')
-        self.mdw.insert('stg', table, data = df, replace_table = True)
-        del df
+        self.mdw.insert('stg', table, data = data, replace_table = True)
+        # del df
         return
     
     def __structure_compliance(self) -> None|str:
@@ -1243,6 +1097,177 @@ ORDER BY [jd].[startdate] ASC
         )
         return
 
+def validate_email(original_email: str, domain_check: bool = False) -> tuple[str, None|str]:
+    """
+    ### validate_email
+
+    Version: 1.1
+    Authors: JRA
+    Date: 2024-02-12
+
+    #### Explanation:
+    Validates an email.
+
+    #### Requirements:
+    - email_validator.validate_email
+
+    #### Parameters:
+    - original_email (str): Email to be validated.
+    - domain_check (bool): If true, the domain of the email is verified. Defaults to false.
+
+    #### Returns:
+    - (str): If valid, the normalised email is returned, else the input email is returned.
+    - (None|str): Any errors in the email are presented here, None if the email is valid.
+
+    #### Usage:
+    >>> validate_email(
+            original_email = "JRA.Euler.notifications@gmail.com",
+            domain_check = True
+        )
+    ("JRA.Euler.notifications@gmail.com", None)
+
+    #### History:
+    - 1.1 JRA (2024-02-12): Generic exceptions are no longer ignored.
+    - 1.0 JRA (2024-01-30): Initial version.
+    """
+    import email_validator
+    try:
+        email = email_validator.validate_email(original_email, check_deliverability = domain_check)
+    except (email_validator.exceptions_types.EmailNotValidError, email_validator.exceptions_types.EmailSyntaxError, email_validator.exceptions_types.EmailUndeliverableError) as e:
+        return (original_email, str(e))
+    else:
+        return (email.normalized, None)
+        
+def validate_postcode(original_postcode: str, country: str = "GB") -> tuple[str, None|str]:
+    """
+    ### validate_postcode
+
+    Version: 1.1
+    Authors: JRA
+    Date: 2024-02-12
+
+    #### Explanation:
+    Validates UK postcodes.
+
+    #### Requirements:
+    - postcode_validator.uk.uk_postcode_validator.UKPostcode
+
+    #### Parameters: 
+    - original_postcode (str): The postcode to be validated.
+    - country (str): The country code of the postcode. Defauts to "GB".
+
+    #### Returns:
+    - (str): The postcode in standard format if validated, the original if not.
+    - (None|str): Details of errors during validation, None if valid.
+
+    #### Usage:
+    >>> validate_postcode("wa11sr")
+    "WA1 1SR"
+
+    #### Tasklist:
+    - Might be worth having a mapping from country names to codes.
+
+    #### History:
+    - 1.1 JRA (2024-02-12): Generic exceptions are no longer ignored.
+    - 1.0 JRA (2024-01-30): Initial version.
+    """
+    from postcode_validator.uk.uk_postcode_validator import UKPostcode
+    import postcode_validator.Exceptions.exceptions as postcodeexceptions
+    if country == "UK":
+        country = "GB"
+    if country != "GB":
+        return (original_postcode, "Cannot validate postcodes outside of GB.")
+    try:
+        postcode = UKPostcode(original_postcode)
+    except postcodeexceptions.ValidationError as e:
+        return (original_postcode, str(e))
+    else:
+        return (postcode.postcode, None)
+    
+def validate_phone(original_phone: str, country: str = "GB") -> tuple[str, None|str]:
+    """
+    ### validate_phone
+
+    Version: 1.1
+    Authors: JRA
+    Date: 2024-02-12
+
+    #### Explanation: 
+    Validates phone numbers.
+
+    #### Requirements:
+    - phonenumbers
+
+    #### Parameters:
+    - original_phone (str): Phone number to validate.
+    - country (str): Country code of phone number. Defaults to "GB".
+
+    #### Returns:
+    - (str): Appopriately formatted phone number if valid, the original if not.
+    - (None|str): Details of errors during validation, None if valid.
+
+    #### Usage:
+    >>> validate_phone("01925644800")
+    ('+441925644800', None)
+
+    #### Tasklist:
+    - Add a parameter to specify output format of phone number.
+    - Might be worth having a mapping from country names to codes.
+
+    #### History:
+    - 1.1 JRA (2024-02-12): Generic exceptions are no longer ignored.
+    - 1.0 JRA (2024-01-30): Initial version.
+    """
+    import phonenumbers
+    try:
+        phone = phonenumbers.parse(original_phone, region = country)
+    except phonenumbers.phonenumberutil.NumberParseException as error:
+        return (original_phone, str(error))
+    else:
+        return ("+" + str(phone.country_code) + str(phone.national_number), None)
+    
+def standardiser(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    ### standardiser
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-01-30
+
+    #### Explanation:
+    Applies validate_email, validate_postcode and validate_phone to a given dataframe by looking for columns "phone", "email" or "postcode".
+
+    #### Requirements:
+    - eulib.validate_postcode
+    - eulib.validate_phone
+    - eulib.validate_email
+
+    #### Parameters:
+    - df (pandas.DataFrame): The dataframe to standardise.
+
+    #### Returns:
+    - (pandas.DataFrame): Standadised dataframe.
+
+    #### Tasklist:
+    - Is this really necessary?
+    - Are other fields also worth standardising?
+
+    #### History:
+    - 1.0 JRA (2024-01-30): Initial version.
+    """
+    columns = df.columns.to_list()
+    if 'phone' in columns:
+        LOG.info("Standardising phone numbers...")
+        df[['phone_std', 'phone_error']] = df[['phone', 'country']].apply((lambda x: validate_postcode(x['phone'], x['country'])), axis = 1).to_list()
+    if 'postcode' in columns:
+        LOG.info("Standardising postcodes...")
+        df[['postcode_std', 'postcode_error']] = df[['postcode', 'country']].apply((lambda x: validate_postcode(x['postcode'], x['country'])), axis = 1).to_list()
+    if 'email' in columns:
+        LOG.info("Standardising email addresses...")
+        df[['email_std', 'email_error']] = df['email'].apply((lambda x: validate_postcode(x['email'])), axis = 1).to_list()
+    LOG.info("Standardising complete.")
+    return df
+
 def mdw_basic_query_builder(source: str, links: list[tuple[str]]) -> tuple[str, dict[str, str]]:
     """
     ### mdw_basic_query_builder
@@ -1336,3 +1361,4 @@ def mdw_basic_query_builder(source: str, links: list[tuple[str]]) -> tuple[str, 
         sql += f"\n\tAND [{string.ascii_lowercase[i]}].[{'loadenddate' if i%3 == 1 else 'lastseendate'}] IS NULL"
     sql = loaddate + "\n\t\t) AS [T]([loaddate])\n\t) AS [loaddate],\n\t*\n" + sql
     return sql, legend
+
