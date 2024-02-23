@@ -1,7 +1,7 @@
 """
 # eulib.py
 
-Version: 1.2.3
+Version: 1.2.4
 Authors: JRA
 Date: 2024-02-19
 
@@ -35,6 +35,7 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - Is standardiser necessary?
 
 #### History:
+- 1.2.4 JRA (2024-02-23): MDWJob v2.4.
 - 1.2.3 JRA (2024-02-22): MDWJob v2.3.
 - 1.2.2 JRA (2024-02-19): More Tabular implementation for MDWJob.
 - 1.2.1 JRA (2024-02-16): In the MDWJob class, began Tabular implementation and fixed a bug in __init__.
@@ -124,9 +125,9 @@ class MDWJob:
     """
     ## MDWJob
 
-    Version: 2.3
+    Version: 2.4
     Authors: JRA
-    Date: 2024-02-22
+    Date: 2024-02-23
 
     #### Explanation:
     Handles jobs in an MDW.
@@ -177,6 +178,7 @@ class MDWJob:
     - Remove dependency on pandas DataFrame in __stage_blob by using Tabular.
 
     #### History:
+    - 2.4 JRA (2024-02-23): __stage_blob v2.1.
     - 2.3 JRA (2024-02-22): __stage_blob v2.0.
     - 2.2 JRA (2024-02-19): More Tabular implementation.
     - 2.1 JRA (2024-02-16): Began Tabular implementation and fixed a bug in __init__.
@@ -623,9 +625,9 @@ class MDWJob:
         """
         ### __stage_blob
 
-        Version: 2.0
+        Version: 2.1
         Authors: JRA
-        Date: 2024-02-22
+        Date: 2024-02-23
 
         #### Explanation:
         Inserts a CSV file into the "stg" schema of the MDW.
@@ -638,7 +640,11 @@ class MDWJob:
         - container (str)
         - filename (str)
 
+        #### Tasklist:
+        - If streaming a string into Tabular for large delimited data, then we need that!
+
         #### History:
+        - 2.1 JRA (2024-02-23): Refactored to use Tabular and pandas DataFrame.
         - 2.0 JRA (2024-02-22): Refactored to use Tabular.
         - 1.2 JRA (2024-02-19): Made compatible with SQLHandler v3.0.
         - 1.1 JRA (2024-02-13): Job is not started at the top of the method. Removed job_id and job_name parameters.
@@ -647,16 +653,17 @@ class MDWJob:
         table = self.job_name + '_' + self.job_id
 
         LOG.info(f'Retrieving file "{filename}" from "{container}" at {azure_storage}...')
-        data = azure_storage.get_blob_as_string(
-            container = container,
-            filename = filename,
-            encoding = 'latin1'
-        )
+        data = azure_storage.get_blob_csv_as_dataframe(container, filename, encoding = 'latin1', header = 0).map(lambda x: None if pd.isnull(x) else str(x))
+        # data = azure_storage.get_blob_as_string(
+        #     container = container,
+        #     blob = filename,
+        #     encoding = 'latin1'
+        # )
         data = Tabular(
             data = data,
-            row_separator = '\n',
-            col_separator = ',',
-            header = True,
+            # row_separator = '\n',
+            # col_separator = ',',
+            # header = True,
             name = filename
         )
         LOG.info('Retrieved file "{}" with columns:\n{}'.format(filename, '\n'.join(data.columns)))
@@ -668,8 +675,6 @@ class MDWJob:
                 column += str(data.columns[0:c + 1].count(column.lower()))
                 LOG.info(f"Renaming column: {data.columns[c]} -> {column}.")
                 data.columns[c] = column
-
-        # df = azure_storage.get_blob_csv_as_dataframe(container, filename, encoding = 'latin1', header = None).map(lambda x: None if pd.isnull(x) else str(x))
 
         # df.rename(columns = df.iloc[0], inplace = True)
         # df.drop(df.index[0], inplace = True)
@@ -691,7 +696,6 @@ class MDWJob:
 
         LOG.info(f'Staging file "{filename}" in the MDW.')
         self.mdw.insert('stg', table, data = data, replace_table = True)
-        # del df
         return
     
     def __structure_compliance(self) -> None|str:
@@ -717,7 +721,7 @@ class MDWJob:
         - 1.1 JRA (2024-02-13): Job is not started at the top of the method. Removed job_id and job_name parameters.
         - 1.0 JRA (2024-01-30): Initial version.
         """
-        return self.mdw.execute_query("EXECUTE [integration].[usp_structure_compliance] @job = ?, @jobid = ?, @schema = ?, @error = '', @print = 0, @display = 1", values = (self.job_name, self.job_id, 'stg')).to_dict(0)[0]
+        return self.mdw.execute_query("EXECUTE [integration].[usp_structure_compliance] @job = ?, @jobid = ?, @schema = ?, @error = '', @print = 0, @display = 1", values = (self.job_name, self.job_id, 'stg')).to_dict(0)['error']
     
     def __add_artificial_key_file_id(self, filename: str = None):
         """

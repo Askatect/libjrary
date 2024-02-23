@@ -68,6 +68,9 @@ class AzureBlobHandler:
     >>> aztore.get_blob_names('container')
     ['folder/file.ext', 'data.csv']
 
+    #### Tasklist:
+    - Write something like get_blob_as_stream.
+
     #### History: 
     - 1.0 JRA (2024-02-06): Initial version.
     """
@@ -249,7 +252,7 @@ class AzureBlobHandler:
         """
         LOG.info(f'Decoding "{blob}" from "{container}" in {str(self)} via {encoding} encoding.')
         return self.get_blob_as_bytes(container, blob).decode(encoding)
-    
+        
     def get_blob_csv_as_dataframe(self, container: str, blob: str, encoding: str = "utf-8", header: int = 0) -> pd.DataFrame:
         """
         ### get_blob_csv_as_dataframe

@@ -1,9 +1,9 @@
 """
 # sql.py
 
-Version: 3.0
+Version: 3.1
 Authors: JRA
-Date: 2024-02-19
+Date: 2024-02-23
 
 #### Explanation:
 Contains the sqlhandler class for operating on SQL Server databases.
@@ -23,7 +23,8 @@ Contains the sqlhandler class for operating on SQL Server databases.
 >>> from pyjra.sql import SQLHandler
 
 #### History:
-- 3.0 JRA (2024-02-19): SQLHandler v3.0.
+- 3.1 JRA (2024-02-23): Tabular implementation bug fixes.
+- 3.0 JRA (2024-02-19): Implemented Tabular and removed select_to_dataframe and query_columns.
 - 2.0 JRA (2024-02-12): Revamped error handling.
 - 1.1 JRA (2024-02-09): Added retry_wait.
 - 1.0 JRA (2024-02-08): Initial version.
@@ -42,9 +43,9 @@ class SQLHandler:
     """
     ## SQLHandler
         
-    Version: 3.0
+    Version: 3.1
     Authors: JRA
-    Date: 2024-02-19
+    Date: 2024-02-23
 
     #### Explanation:
     Operates on SQL Server databases.
@@ -76,6 +77,7 @@ class SQLHandler:
     - Add a execute query method that returns a dictionary representing the first row. Would be useful for a list of values or parameters, such as the weekly summary for func-personal.
 
     #### History:
+    - 3.1 JRA (2024-02-23): Tabular implementation bug fixes.
     - 3.0 JRA (2024-02-19): Implemented Tabular and removed select_to_dataframe and query_columns.
     - 2.0 JRA (2024-02-12): Revamped error handling.
     - 1.1 JRA (2024-02-09): Added retry_wait.
@@ -453,6 +455,7 @@ class SQLHandler:
         >>> executor.execute_query("SELECT 'value' AS [column]")
 
         #### History:
+        - 3.1 JRA (2024-02-23): Added support for queries with no returns.
         - 3.0 JRA (2024-02-19): Refactored to use Tabular.
         - 2.0 JRA (2024-02-12): Revamped error handling.
         - 1.0 JRA (2024-02-09): Initial version.
@@ -475,6 +478,7 @@ class SQLHandler:
 
         try:
             selection = self.cursor.fetchall()
+            LOG.info(f"Selection: {selection}")
         except pyodbc.ProgrammingError as e:
             LOG.warning(f"Could not retrieve query results. {e}")
             selection = None
@@ -485,7 +489,7 @@ class SQLHandler:
         try:
             columns = [col[0] for col in self.cursor.description]
             datatypes = [col[1] for col in self.cursor.description]
-        except AttributeError as e:
+        except TypeError as e:
             LOG.warning(f"No query results to read metadata of.")
             columns = None
             datatypes = None
@@ -493,12 +497,13 @@ class SQLHandler:
             LOG.critical(f"Unexpected {type(e)} error occurred whilst retrieving query results on {self}. {e}")
             raise
 
-        selection = Tabular(
-            data = selection, 
-            columns = columns,
-            datatypes = datatypes,
-            name = name
-        )
+        if selection is not None:
+            selection = Tabular(
+                data = [tuple(row) for row in selection], 
+                columns = columns,
+                datatypes = datatypes,
+                name = name
+            )
 
         self.close_connection(commit)
         return selection
@@ -562,9 +567,9 @@ class SQLHandler:
         """
         ### insert
 
-        Version: 2.1
+        Version: 2.2
         Authors: JRA
-        Date: 2024-02-19
+        Date: 2024-02-23
 
         #### Explanation:
         Inserts data into a specified table.
@@ -593,6 +598,7 @@ class SQLHandler:
         - Add functionality to retry inserts without fast_executemany - not sure which error warrants the retry.
 
         #### History:
+        - 2.2 JRA (2024-02-23): Fixed an issue where `len(data.col_count)` was attempted.
         - 2.1 JRA (2024-02-19): Implemented Tabular.
         - 2.0 JRA (2024-02-09): Revamped error handling.
         - 1.0 JRA (2024-02-09): Initial version.
@@ -626,7 +632,7 @@ class SQLHandler:
 
         LOG.info(f"Inserting into {object_name} on {self}...")
         self.cursor.fast_executemany = fast_execute
-        cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(data.columns) + '])' if len(data.columns) > 0 else ''} VALUES ({'?' + (len(data.col_count) - 1)*', ?'})"
+        cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(data.columns) + '])' if len(data.columns) > 0 else ''} VALUES ({'?' + (data.col_count - 1)*', ?'})"
         try:
             self.cursor.executemany(cmd, data.data)
         except pyodbc.ProgrammingError as e:
@@ -680,9 +686,9 @@ class SQLHandler:
         """
         ### create_table
 
-        Version: 2.1
+        Version: 2.2
         Authors: JRA
-        Date: 2024-02-19
+        Date: 2024-02-23
 
         #### Explanation: 
         Creates a table in the database.
@@ -707,6 +713,7 @@ class SQLHandler:
         >>> executor.create_table('table', ['column'], ['varchar(16)'])
 
         #### History:
+        - 2.2 JRA (2024-02-23): Added column alias to `max_length` query.
         - 2.1 JRA (2024-02-19): Implemented Tabular.
         - 2.0 JRA (2024-02-12): Revamped error handling.
         - 1.0 JRA (2024-02-09): Initial version.
@@ -732,7 +739,7 @@ class SQLHandler:
         if datatype_count >= col_count:
             datatypes = datatypes[:col_count]
         else:
-            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2)AS [length] FROM sys.types WHERE [system_type_id] = 231", commit = False).to_dict(0)['length']
+            max_length = self.execute_query("SELECT CONVERT(int, [max_length]/2) AS [length] FROM sys.types WHERE [system_type_id] = 231", commit = False).to_dict(0)['length']
             datatypes.extend([f'nvarchar({max_length})']*(col_count - datatype_count))
         
         column_definition = ',\n\t'.join(f"[{col}] {datatype}" for col, datatype in zip(columns, datatypes))

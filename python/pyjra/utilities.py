@@ -662,15 +662,16 @@ class Tabular():
         if row_based is not None:
             if self.row_based == row_based:
                 return
-            else:
-                self.row_based = row_based
+        else:
+            row_based = not self.row_based
+        self.row_based = row_based
         data = []
         if row_based:
-            for c in range(self.col_count):
-                data.append(tuple([self.data[r][c] for r in range(self.row_count)]))
-        else:
             for r in range(self.row_count):
                 data.append(tuple([self.data[c][r] for c in range(self.col_count)]))
+        else:
+            for c in range(self.col_count):
+                data.append(tuple([self.data[r][c] for r in range(self.row_count)]))
         self.data = data
         return
     
