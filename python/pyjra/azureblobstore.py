@@ -1,9 +1,9 @@
 """
 # azureblobstore.py
 
-Version: 1.0
+Version: 1.3
 Authors: JRA
-Date: 2024-02-06
+Date: 2024-03-01
 
 #### Explanation:
 Contains the AzureBlobHandler class for handling Azure blobs.
@@ -11,6 +11,7 @@ Contains the AzureBlobHandler class for handling Azure blobs.
 #### Requirements:
 - pyjra.logger: Handles logging of processes.
 - pyjra.utilities.extract_param: Reads parameters from connection strings.
+- pyjra.utilities.Tabular: Class to transport data.
 - keyring: For storage and retrieval of keys.
 - pandas: The DataFrame can be used as a storage medium.
 - io.StringIO: For streaming.
@@ -23,11 +24,15 @@ Contains the AzureBlobHandler class for handling Azure blobs.
 >>> from pyjra.azureblobstore import AzureBlobHandler
 
 #### History:
+- 1.3 JRA (2024-02-29): AzureBlobHandler v1.3.
+- 1.2 JRA (2024-02-29): AzureBlobHandler v1.2.
+- 1.1 JRA (2024-02-27): AzureBlobHandler v1.1.
 - 1.0 JRA (2024-02-06): Initial version.
 """
 from pyjra.logger import LOG
 
 from pyjra.utilities import extract_param
+from pyjra.utilities import Tabular
 
 import keyring as kr
 import pandas as pd
@@ -38,9 +43,9 @@ class AzureBlobHandler:
     """
     ## AzureBlobHandler
 
-    Version: 1.0
+    Version: 1.3
     Authors: JRA
-    Date: 2024-02-06
+    Date: 2024-03-01
 
     #### Explanation:
     Handles Azure blobs.
@@ -54,11 +59,12 @@ class AzureBlobHandler:
     - get_blob_names (func): Retrieves a list of blob names in a specified container.
     - get_blob_as_bytes (func): Retrieves the content of a blob as bytes.
     - get_blob_as_string (func): Retrieves the content of a blob as a string.
+    - get_blob_csv_as_stream (func): Retrieves the content of a blob as a string stream.
     - get_blob_csv_as_dataframe (func): Retrieves the content of a CSV blob as a DataFrame.
     - copy_blob (func): Copies a blob from one location to another.
     - delete_blob (func): Deletes a blob from a container.
     - rename_blob (func): Renames a blob within a container.
-    - write_dataframe_to_blob_csv (func): Writes a blob csv from a DataFrame into the specified container.
+    - write_to_blob_csv (func): Writes a blob csv from a DataFrame or pyjra.utilities.Tabular into the specified container.
 
     #### Returns:
     - (azureblobstore.AzureBlobHandler)
@@ -68,10 +74,10 @@ class AzureBlobHandler:
     >>> aztore.get_blob_names('container')
     ['folder/file.ext', 'data.csv']
 
-    #### Tasklist:
-    - Write something like get_blob_as_stream.
-
-    #### History: 
+    #### History:
+    - 1.3 JRA (2024-03-01): write_to_blob_csv v1.2.
+    - 1.2 JRA (2024-02-29): Added write_to_blob_csv.
+    - 1.1 JRA (2024-02-27): Added get_blob_csv_as_stream.
     - 1.0 JRA (2024-02-06): Initial version.
     """
     def __init__( # Add parameters to this, a la SQLHandler.
@@ -252,6 +258,38 @@ class AzureBlobHandler:
         """
         LOG.info(f'Decoding "{blob}" from "{container}" in {str(self)} via {encoding} encoding.')
         return self.get_blob_as_bytes(container, blob).decode(encoding)
+    
+    def get_blob_csv_as_stream(self, container: str, blob: str, encoding: str = 'utf-8', row_separator: str = '\n'):
+        """
+        ### get_blob_csv_as_stream
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-02-27
+
+        Explanation:
+        Retrieves the content of a blob as a string stream.
+
+        Requirements:
+        - AzureBlobHandler.get_blob_csv_as_stream (func)
+        
+        Parameters:
+        - container (str): The container with the blob to read.
+        - blob (str): The name of the blob to read.
+        - encoding (str): The encoding to decode the blob with. Defaults to utf-8.
+        - row_separator (str): The string to treat as a new line identifier. Defaults to `'\\n'`.
+
+        Returns:
+        - (StringIO)
+
+        Usage:
+        >>> aztore.get_blob_as_stream('container', 'folder/file.ext')
+
+        History:
+        - 1.0 JRA (2024-02-27): Initial version.
+        """
+        LOG.info(f'Writing "{blob}" from "{container}" in {str(self)} to string stream.')
+        return StringIO(self.get_blob_as_string(container, blob, encoding), newline = row_separator)
         
     def get_blob_csv_as_dataframe(self, container: str, blob: str, encoding: str = "utf-8", header: int = 0) -> pd.DataFrame:
         """
@@ -389,28 +427,51 @@ class AzureBlobHandler:
         self.delete_blob(container, old_blob)
         return
     
-    def write_dataframe_to_blob_csv(self, container: str, blob: str, df: pd.DataFrame):
+    def write_to_blob_csv(
+        self, 
+        container: str, 
+        blob: str, 
+        data: Tabular|pd.DataFrame,
+        encoding: str = 'utf-8'
+    ):
         """
-        ### write_dataframe_to_blob_csv
+        ### write_to_blob_csv
 
-        Version: 1.0
+        Version: 1.2
         Authors: JRA
-        Date: 2024-02-06
+        Date: 2024-03-01
 
         #### Explanation:
-        Writes a blob csv from a DataFrame into the specified container.
+        Writes a blob csv from a DataFrame or pyjra.utilities.Tabular into the specified container.
 
         #### Parameters:
         - container (str): The container to write the blob in.
         - blob (str): The name of the blob to write to.
-        - df (pandas.DataFrame): The DataFrame to convert to CSV.
+        - data (pyjra.utilities.Tabular|pandas.DataFrame): The data to convert to CSV.
+        - encoding (str): The encoding to store the blob with. Defaults to utf-8.
 
         #### Usage:
-        >>> write_dataframe_to_blob_csv('container', 'folder/file.csv', data)
+        >>> write_to_blob_csv('container', 'folder/file.csv', data)
 
         #### History:
-        - 1.0 JRA (2024-02-06)
+        - 1.2 JRA (2024-03-01): Added encoding.
+        - 1.1 JRA (2024-02-29): Added support for pyjra.utilities.Tabular.
+        - 1.0 JRA (2024-02-06): Initial version.
         """
+        if isinstance(data, pd.DataFrame):
+            data = data.to_csv(index = False)
+        elif isinstance(data, Tabular):
+            data = data.to_delimited(
+                row_separator = '\n',
+                col_separator = ',',
+                header = True,
+                wrap_left = '"',
+                wrap_right = '"'
+            ).encode(encoding)
+        else:
+            error = f'Datatype {type(data)} is not supported for AzureBlobHandler.write_to_blob_csv.'
+            LOG.error(error)
+            raise ValueError(error)
         container_client = self.__storage_client.get_container_client(container = container)
-        container_client.upload_blob(name = blob, data = df.to_csv(index = False))
+        container_client.upload_blob(name = blob, data = data)
         return

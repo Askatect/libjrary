@@ -1,6 +1,8 @@
 from pyjra.logger import LOG
 
 from pandas import DataFrame
+from io import StringIO
+from csv import reader
 
 def justify_text(text: str, width: int = 64, tab_length: int = 4) -> str:
     """
@@ -422,7 +424,7 @@ def gradient_hex(target, lower, upper, hexmin, hexmax):
 class Tabular():
     def __init__(
         self, 
-        data: list[tuple]|DataFrame|str|dict, 
+        data: list[tuple]|DataFrame|str|StringIO|dict, 
         columns: list[str] = None, 
         datatypes: list[type] = None,
         row_separator: str = '\n',
@@ -454,9 +456,14 @@ class Tabular():
             LOG.error(error)
             raise ValueError(error)
         
-        # Extract data from a delimited string.
-        if isinstance(data, str):
-            data = [tuple(row.split(col_separator)) for row in data.split(row_separator)]
+        # Extract data from a delimited string or stream.
+        if isinstance(data, str) or isinstance(data, StringIO):
+            from csv import reader
+            if isinstance(data, str):
+                data = StringIO(data)
+            data = [tuple(row) for row in reader(data)]
+            for r in range(len(data)):
+                data[r] = tuple(None if value == "" else value for value in data[r])
             if header and columns is None:
                 columns = list(data[0])
                 data = data[1:]
@@ -491,7 +498,7 @@ class Tabular():
         
         # Validate datatypes.
         if not(datatypes is None and (isinstance(data, DataFrame) or isinstance(data, dict))):
-            self.__transpose(row_based = False)
+            self.transpose(row_based = False)
             for c in range(self.col_count):
                 datatype = self.datatypes[c]
                 if all((value is None) or isinstance(value, datatype) for value in self.data[c]):
@@ -510,15 +517,15 @@ class Tabular():
                     raise ValueError(e)
 
         # Ensure row-based storage.
-        self.__transpose(row_based = True)
+        self.transpose(row_based = True)
         return
     
     def __str__(self) -> str:
-        self.__transpose(row_based = True)
+        self.transpose(row_based = True)
         return tabulate(table = [tuple(self.columns)] + self.data, header = 1, name = self.name)
     
     def __repr__(self) -> str:
-        self.__transpose(row_based = True)
+        self.transpose(row_based = True)
         return f"Tabular(\n\tdata = {self.data},\n\tcolumns = {self.columns or 'None'},\n\tdatatypes = {[str(datatype) for datatype in self.datatypes] or 'None'}\n)"
     
     def __getitem__(self, key: int|list[int]|slice):
@@ -650,15 +657,7 @@ class Tabular():
         )
         return output
 
-    def col_pos(self, col: str) -> int:
-        if col in self.columns:
-            return self.columns.index(col)
-        else:
-            error = f'Column "{col}" not found.'
-            LOG.error(error)
-            raise ValueError(error)
-    
-    def __transpose(self, row_based: bool = None):
+    def transpose(self, row_based: bool = None):
         if row_based is not None:
             if self.row_based == row_based:
                 return
@@ -673,7 +672,25 @@ class Tabular():
             for c in range(self.col_count):
                 data.append(tuple([self.data[r][c] for r in range(self.row_count)]))
         self.data = data
-        return
+        return self
+    
+    def col_pos(self, col: str) -> int:
+        if col in self.columns:
+            return self.columns.index(col)
+        else:
+            error = f'Column "{col}" not found.'
+            LOG.error(error)
+            raise ValueError(error)
+        
+    def get_column(self, column: int|str) -> tuple:
+        if isinstance(column, str):
+            column = self.col_pos(column)
+        elif isinstance(column, int):
+            if column >= self.col_count:
+                error = f'There are only {self.col_count} columns - there is no column at index {column}.'
+                LOG.error(error)
+                raise AttributeError(error)
+        return self.transpose(row_based = False).data[column]
     
     def to_dataframe(self) -> DataFrame:
         return DataFrame(data = self.data, columns = self.columns)
@@ -683,12 +700,29 @@ class Tabular():
             row = self.col_pos(row)
         return dict(zip(self.columns, self.data[row]))
     
-    def to_delimited(self, row_separator: str = '\n', col_separator: str = ',', header: bool = True) -> str:
-        output = row_separator.join([col_separator.join([str(value) for value in row]) for row in self.data])
+    def to_delimited(
+        self, 
+        row_separator: str = '\n', 
+        col_separator: str = ',', 
+        header: bool = True, 
+        wrap_left: str = '', 
+        wrap_right: str = ''
+    ) -> str:
+        output = row_separator.join([col_separator.join([wrap_left + str(value or "") + wrap_right for value in row]) for row in self.data])
         if header:
-            return col_separator.join(self.columns) + row_separator + output
+            return col_separator.join([wrap_left + str(value or "") + wrap_right for value in self.columns]) + row_separator + output
         else:
             return output
+        
+    def to_stream(
+        self, 
+        row_separator: str = '\n', 
+        col_separator: str = ',', 
+        header: bool = True, 
+        wrap_left: str = '', 
+        wrap_right: str = ''
+    ) -> StringIO:
+        return StringIO(self.to_delimited(row_separator, col_separator, header, wrap_left, wrap_right))
         
     def to_html(
         self, 
@@ -709,7 +743,7 @@ class Tabular():
             col_info.append({'numeric': False})
             if self.datatypes[c] not in (int, float):
                 continue
-            self.__transpose(row_based = False)
+            self.transpose(row_based = False)
             col = [value for value in self.data[c] if value is not None]
             if len(col) == 0:
                 continue
@@ -718,7 +752,7 @@ class Tabular():
             col_info[c]['min'] = min(col)
             col_info[c]['max'] = max(col)
             col_info[c]['signed'] = (col_info[c]['min'] < 0)
-        self.__transpose(row_based = True)
+        self.transpose(row_based = True)
         html = f'<table style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid {colours["black"]};border-collapse:collapse">\n'
         html += f'\t<tr style="color:{colours["white"]}">\n\t\t<th style="background-color:{colours["dark_accent"]};border:2px solid {colours["black"]}">{self.columns[0]}</th>\n'
         for column in self.columns[1:]:

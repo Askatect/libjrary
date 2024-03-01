@@ -431,9 +431,9 @@ class SQLHandler:
         """
         ### execute_query
 
-        Version: 3.0
+        Version: 3.1
         Authors: JRA
-        Date: 2024-02-19
+        Date: 2024-02-23
 
         #### Explanation:
         Executes a SQL query.
@@ -478,7 +478,6 @@ class SQLHandler:
 
         try:
             selection = self.cursor.fetchall()
-            LOG.info(f"Selection: {selection}")
         except pyodbc.ProgrammingError as e:
             LOG.warning(f"Could not retrieve query results. {e}")
             selection = None

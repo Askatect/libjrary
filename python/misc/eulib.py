@@ -1,9 +1,9 @@
 """
 # eulib.py
 
-Version: 1.2.4
+Version: 1.2.7
 Authors: JRA
-Date: 2024-02-19
+Date: 2024-03-01
 
 #### Explanation:
 Library of functions and classes that might be useful for Euler DataOps and Analytics.
@@ -35,6 +35,9 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - Is standardiser necessary?
 
 #### History:
+- 1.2.7 JRA (2024-02-27): MDWJob v2.7.
+- 1.2.6 JRA (2024-02-27): MDWJob v2.6.
+- 1.2.5 JRA (2024-02-27): MDWJob v2.5.
 - 1.2.4 JRA (2024-02-23): MDWJob v2.4.
 - 1.2.3 JRA (2024-02-22): MDWJob v2.3.
 - 1.2.2 JRA (2024-02-19): More Tabular implementation for MDWJob.
@@ -125,9 +128,9 @@ class MDWJob:
     """
     ## MDWJob
 
-    Version: 2.4
+    Version: 2.7
     Authors: JRA
-    Date: 2024-02-23
+    Date: 2024-03-01
 
     #### Explanation:
     Handles jobs in an MDW.
@@ -141,6 +144,7 @@ class MDWJob:
     - job_name (str): The name of the job currently being executed.
     - job_id (str): The identifier of the job currently being executed.
     - source (str): The source of the currently running job.
+    - marker (int): The marker of the currently running job.
     - aspect (str): The aspect of the currently running job.
     - __init__ (func): Initialises the MDWJob, creates a supjob identifier and logs the start of the job.
     - __str__ (func): String representation of the supjob, including name, identifier and target MDW.
@@ -155,6 +159,7 @@ class MDWJob:
     - __structure_compliance (func): Executes the structure compliance stored procedure on a staged table.
     - __add_artificial_key_file_id (func): Executes the stored procedure to add [artificialkey], [FileId] and [id] columns to a staged table.
     - __staging_extraction (func): Calls a stored procedure that extracts data in a staging table into new staging tables based on their semantic types, and then ingests these into the MDW.
+    - cleaning_and_stewardship (func): Cleans data in a raw integration satellite. Files with no invalid data are ingested into a clean satellite on the same hub and files with invalid data are purged from the MDW and the cleaned data is staged instead.
     - cleaning_transforms (func): Executes the cleaning stored procedure (without rebuild of clean satellites).
     - reset_azure_container (func): Given an Azure environment, container and folder, files one subfolder further in are moved up a directory. Useful for readying archived or rejected files for processing.
     - purge_by_recordsource (func): Executes the stored procedure to purge the MDW by record source. Has flags to purge the MDW, the staging schema and the archive schema separately.
@@ -174,10 +179,10 @@ class MDWJob:
         )
     >>> del source_control
 
-    Tasklist:
-    - Remove dependency on pandas DataFrame in __stage_blob by using Tabular.
-
     #### History:
+    - 2.7 JRA (2024-03-01): purge_by_recordsource v1.1, cleaning_and_stewardship v1.1 and __stage_blob v2.3.
+    - 2.6 JRA (2024-02-29): cleaning_transforms v2.2, cleaning_and_stewardship v1.0
+    - 2.5 JRA (2024-02-27): supjob_end v1.3, ingest_csv_blobs_to_mdw v2.1 and __stage_blob v2.2.
     - 2.4 JRA (2024-02-23): __stage_blob v2.1.
     - 2.3 JRA (2024-02-22): __stage_blob v2.0.
     - 2.2 JRA (2024-02-19): More Tabular implementation.
@@ -309,12 +314,12 @@ class MDWJob:
         """
         ### __validate_job_name
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-02-29
 
         #### Explanation: 
-        Ensures that a job name is valid. Should be the format "<source>_<code>_<aspect>", where the code is three digits.
+        Ensures that a job name is valid. Should be the format "<source>_<marker>_<aspect>", where the marker is three digits.
 
         #### Parameters:
         - job_name (str): The job name to validate.
@@ -323,15 +328,17 @@ class MDWJob:
         - (str): Input job name.
         - (None|str): Validation error or None if valid.
        
-        #### History: 
+        #### History:
+        - 1.1 JRA (2024-02-29): The job marker is stored also.
         - 1.0 JRA (2024-01-30): Initial version.
         """
         try:
-            source, _, aspect = regex.match(r"^([a-zA-Z]+)_(\d{3})_([a-zA-Z]+)$", job_name).groups()
+            source, code, aspect = regex.match(r"^([a-zA-Z]+)_(\d{3})_([a-zA-Z]+)$", job_name).groups()
         except AttributeError:
             return (job_name, f'The job name "{job_name}" is invalid.')
         else:
             self.source = source
+            self.marker = int(code)
             self.aspect = aspect
             return (job_name, None)
     
@@ -376,9 +383,9 @@ class MDWJob:
         """
         ### supjob_end
 
-        Version: 1.1
+        Version: 1.2
         Authors: JRA
-        Date: 2024-02-13
+        Date: 2024-02-27
 
         #### Explanation: 
         Logs the end of the supjob.
@@ -390,9 +397,13 @@ class MDWJob:
         >>> source_control.supjobstart()
 
         #### History:
+        - 1.2 JRA (2024-02-27): Ensures that the open job is ended.
         - 1.1 JRA (2024-02-13): Errors are no longer passed silently.
         - 1.0 JRA (2024-01-30): Initial version.
         """
+        if self.job_name is not None:
+            LOG.warning(f"Forcefully ending job {self.job_name} to end supjob {self.supjob_name}.")
+            self.job_end('Exited')
         if self.supjob_name is None:
             error = "There is no active supjob to end."
             LOG.error(error)
@@ -506,9 +517,9 @@ class MDWJob:
         """
         ### ingest_csv_blobs_to_mdw
 
-        Version: 2.0
+        Version: 2.1
         Authors: JRA
-        Date: 2024-02-13
+        Date: 2024-02-27
 
         #### Explanation:
         Ingest CSV files from Azure blob storage to the MDW. Archives the files if successful and rejects them if they have a bad filename or structure.
@@ -539,6 +550,7 @@ class MDWJob:
             )
 
         #### History:
+        - 2.1 JRA (2024-02-27): Deprecated __staging_extraction by calling [metadata].[usp_datavault_routing] directly.
         - 2.0 JRA (2024-02-13): Revamped error handling.
         - 1.2 JRA (2024-01-02): Fixed an issue where the arguments for __add_artificial_key_file_id were misaligned.
         - 1.1 JRA (2024-01-31): Added functionality for multiple acceptable filename formats.
@@ -603,16 +615,15 @@ class MDWJob:
             else:
                 LOG.info("Key columns added to staged table.")
 
-            LOG.info("Performing staging extraction...")
+            LOG.info("Performing routing...")
             try:
-                self.__staging_extraction()
+                self.mdw.execute_query(f"EXECUTE [metadata].[usp_datavault_routing] @jobid = ?, @jobname = ?, @print = 0", values = (self.job_id, self.job_name))
             except Exception as e:
-                self.job_end('Failure', f'Unexpected {type(e)} error occurred whilst performing staging extraction. {error}')
+                self.job_end('Failure', f'Unexpected {type(e)} error occurred whilst performing routing. {error}')
                 raise
             else:
-                LOG.info("Staging extraction complete.")
+                LOG.info("Routing complete.")
 
-            azure_storage.rename_blob(container, filename, filename.replace(directory, directory + 'archive/'))
             self.job_end('Complete')
         return
 
@@ -625,9 +636,9 @@ class MDWJob:
         """
         ### __stage_blob
 
-        Version: 2.1
+        Version: 2.3
         Authors: JRA
-        Date: 2024-02-23
+        Date: 2024-03-01
 
         #### Explanation:
         Inserts a CSV file into the "stg" schema of the MDW.
@@ -640,10 +651,9 @@ class MDWJob:
         - container (str)
         - filename (str)
 
-        #### Tasklist:
-        - If streaming a string into Tabular for large delimited data, then we need that!
-
         #### History:
+        - 2.3 JRA (2024-03-01): List of retrieved columns is now enumerated.
+        - 2.2 JRA (2024-02-27): Fixed a bug where columns weren't being made unique.
         - 2.1 JRA (2024-02-23): Refactored to use Tabular and pandas DataFrame.
         - 2.0 JRA (2024-02-22): Refactored to use Tabular.
         - 1.2 JRA (2024-02-19): Made compatible with SQLHandler v3.0.
@@ -653,28 +663,35 @@ class MDWJob:
         table = self.job_name + '_' + self.job_id
 
         LOG.info(f'Retrieving file "{filename}" from "{container}" at {azure_storage}...')
-        data = azure_storage.get_blob_csv_as_dataframe(container, filename, encoding = 'latin1', header = 0).map(lambda x: None if pd.isnull(x) else str(x))
-        # data = azure_storage.get_blob_as_string(
-        #     container = container,
-        #     blob = filename,
-        #     encoding = 'latin1'
-        # )
+        # data = azure_storage.get_blob_csv_as_dataframe(container, filename, encoding = 'latin1', header = 0).map(lambda x: None if pd.isnull(x) else str(x))
+        data = azure_storage.get_blob_csv_as_stream(
+            container = container,
+            blob = filename,
+            encoding = 'latin1',
+            row_separator = '\n'
+        )
         data = Tabular(
             data = data,
-            # row_separator = '\n',
-            # col_separator = ',',
-            # header = True,
+            row_separator = '\n',
+            col_separator = ',',
+            header = True,
             name = filename
         )
-        LOG.info('Retrieved file "{}" with columns:\n{}'.format(filename, '\n'.join(data.columns)))
+        columns = ''
+        pad = len(str(data.col_count))
+        for c, column in enumerate(data.columns):
+            columns += '\n' + str(c + 1).zfill(pad) + ': ' + column
+        LOG.info(f'Retrieved file "{filename}" with columns:{columns}')
+        del columns
+        del pad
 
-        LOG.info("Ensuring uniqueness of columns...")
-        for c in range(data.col_count):
+        columns_lower = [column.lower() for column in data.columns]
+        for c in range(data.col_count - 1, -1, -1):
             column = data.columns[c]
-            if data.columns.count(column.lower()) > 1:
-                column += str(data.columns[0:c + 1].count(column.lower()))
-                LOG.info(f"Renaming column: {data.columns[c]} -> {column}.")
-                data.columns[c] = column
+            if columns_lower.count(column.lower()) > 1:
+                data.columns[c] += '_' + str(columns_lower[0:c + 1].count(column.lower()))
+                LOG.info(f"Renaming column {c + 1}: {column} -> {data.columns[c]}.")
+        del columns_lower
 
         # df.rename(columns = df.iloc[0], inplace = True)
         # df.drop(df.index[0], inplace = True)
@@ -721,7 +738,7 @@ class MDWJob:
         - 1.1 JRA (2024-02-13): Job is not started at the top of the method. Removed job_id and job_name parameters.
         - 1.0 JRA (2024-01-30): Initial version.
         """
-        return self.mdw.execute_query("EXECUTE [integration].[usp_structure_compliance] @job = ?, @jobid = ?, @schema = ?, @error = '', @print = 0, @display = 1", values = (self.job_name, self.job_id, 'stg')).to_dict(0)['error']
+        return self.mdw.execute_query("EXECUTE [integration].[usp_structure_compliance] @job_name = ?, @job_id = ?, @schema = ?, @error = '', @print = 0, @display = 1", values = (self.job_name, self.job_id, 'stg')).to_dict(0)['error']
     
     def __add_artificial_key_file_id(self, filename: str = None):
         """
@@ -770,145 +787,102 @@ class MDWJob:
         self.mdw.execute_query("EXECUTE [integration].[usp_staging_extraction] @job = ?, @jobid = ?, @supjobid = ?, @schema = ?, @print = 0", values = (self.job_name, self.job_id, self.supjob_id, 'stg'))
         return
     
+    def cleaning_and_stewardship(
+        self, 
+        job_name: str, 
+        azure_storage: AzureBlobHandler,
+        container: str
+    ):
+        """
+        ### cleaning_and_stewardship
+
+        Version: 1.1
+        Authors: JRA
+        Date: 2024-03-01
+
+        Explanation:
+        Cleans data in a raw integration satellite. Files with no invalid data are ingested into a clean satellite on the same hub and files with invalid data are purged from the MDW and the cleaned data is staged instead.
+
+        Requirements:
+        - MDWJob.cleaning_transforms
+        - MDWJob.job_start
+        - MDWJob.job_end
+
+        Parameters:
+        - job_name (str): The name to ascribe to the cleaning job. The job used to archive or send to stewardship will be the same with the marker incremented.
+        - azure_storage (pyjap.azureblobstore.AzureBlobHandler): The Azure blob store to target.
+        - container (str): The container to target in the Azure blob store.
+
+        Usage:
+        >>> source_control.cleaning_and_stewardship(
+                job_name = "source_011_aspect",
+                azure_storage = pyjra.azureblobstore.AzureBlobHandler(environment = "dev"),
+                container = "storage"
+            )
+
+        History:
+        - 1.1 JRA (2024-03-01): Cleaning and sending to stewardship use the same job name.
+        - 1.0 JRA (2024-02-29): Initial version.
+        """
+        cleaning_result = self.cleaning_transforms(job_name)
+
+        directory = self.supjob_name[:(self.supjob_name.find("_"))] + '/'
+
+        for _, subjob_id, filename, valid in cleaning_result.data:
+            filename = str(filename)
+            self.job_start(job_name, filename)
+
+            if valid:
+                LOG.info(f'Archiving "{filename}".')
+                azure_storage.rename_blob(container, filename, filename.replace(directory, directory + 'archive/'))
+                self.job_end('Complete')
+            else:
+                LOG.info(f'Rejecting original "{filename}" and sending cleaned version to stewardship.')
+                data = self.mdw.execute_query(f"SELECT * FROM [stg].[{self.job_name}_{subjob_id}]")
+                azure_storage.write_to_blob_csv(
+                    container = container,
+                    blob = filename.replace(directory, directory + 'stewardship/'),
+                    data = data,
+                    encoding = 'latin1'
+                )
+                azure_storage.rename_blob(container, filename, filename.replace(directory, directory + 'rejected/'))
+                self.job_end('Stewardship')
+        return
+
     def cleaning_transforms(self, job_name: str):
         """
         ### cleaning_transforms
 
-        Version: 1.0
+        Version: 2.2
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-02-29
 
         #### Explanation:
         Executes the cleaning stored procedure (without rebuild of clean satellites).
 
         #### Requirements:
-        - MDWJob.job_start
-        - MDWJob.job_end
         - [integration].[usp_cleaning]
-
-        #### Parameters:
-        - job_name (str): The name of the cleaning job.
 
         #### Usage:
         >>> source_control.cleaning_transforms("source_020_cleaning")
 
         #### History:
+        - 2.2 JRA (2024-02-29): Implemented [integration].[usp_cleaning] v4.0 and the method now returns the results of the cleaning procedure.
         - 2.1 JRA (2024-02-19): Implemented Tabular.
         - 2.0 JRA (2024-02-13): Revamped error handling.
         - 1.0 JRA (2024-01-30): Initial version.
         """
         self.job_start(job_name)
+        LOG.info(f'Running "{self.job_name}" cleaning transformations on {self.mdw}...')
         try:
-            LOG.info(f'Running "{self.job_name}" cleaning transformations on {self.mdw}...')
-            cleaning_result = self.mdw.execute_query(
-                """
-DECLARE @error nvarchar(max)
-EXECUTE [integration].[usp_cleaning] @jobname = ?, @jobid = ?, @error = @error OUTPUT
-SELECT @error AS [error_detail]
-                """, 
-                values = (self.job_name, self.job_id)
-            ).to_dict(0)[0]
+            cleaning_result = self.mdw.execute_query("EXECUTE [integration].[usp_cleaning] @job_name = ?, @job_id = ?, @rebuild = 0, @print = 0, @display = 1", values = (self.job_name, self.job_id))
         except Exception as e:
-            self.job_end('Failure', f'Unexpected Python {type(e)} error occurred during cleaning transformations. {e}')
+            self.job_end('Failure', f'Unexpected {type(e)} error occurred during cleaning transformations. {e}')
             raise
         else:
-            if cleaning_result != None:
-                error = f'SQL error occurred during cleaning transformations. {cleaning_result}'
-                self.job_end('Failure', error)
-                raise MDWJob.MDWSQLError(error)
-            else:
-                LOG.info("Cleaning transformations ran successfully.")
-                self.job_end('Complete')
-        return
-    
-#     def _update_contact_matching(self, job_name: str):
-#         """
-#         Update contact matching table.
-
-#         #### Parameters:
-#         - job_name (str): The name of the job.
-
-#         Prerequisites:
-#         - [integration].[contact_matching] table in SQL.
-#         - [sat].[woodscontact] table in SQL.
-#         """
-#         if not self.job_start(job_name):
-#             return
-#         self.mdw.execute_query(
-#             f"""
-# INSERT INTO [integration].[contact_matching] ([source_hashkey])
-# SELECT [hashkey]
-# FROM [sat].[woodscontact]
-# WHERE [loadenddate] IS NULL
-#     AND [hashkey] NOT IN (SELECT [source_hashkey] FROM [integration].[contact_matching])
-#             """
-#         )
-#         return
-    
-#     def _retrieve_contact_matching_dataset(self, job_name: str) -> pd.DataFrame:
-#         """
-#         Retrieve the contact matching dataset.
-
-#         #### Parameters:
-#         - job_name (str): The name of the job.
-
-#         #### Returns:
-#         A DataFrame containing the contact matching dataset.
-
-#         Prerequisites:
-#         - [integration].[vw_woodsnoncampaignspecificdailyexport_clean] view in SQL.
-#         - [integration].[contact_matching] table in SQL.
-#         - [integration].[vw_contact_matching_target] view in SQL.
-#         """
-#         if not self.job_start(job_name):
-#             return
-#         query = """
-# WITH [matching_source] AS (
-#     SELECT [contacthashkey],
-#         [Title] AS [title],
-#         [forename] AS [forename],
-#         [surname] AS [surname],
-#         [DOB] AS [date_of_birth],
-#         [Gender] AS [sex],
-#         [Address 1] AS [street],
-#         NULLIF(CONCAT_WS(', ', [Address 2], [Address 3], [Address 4]), '') AS [address],
-#         [Town] AS [city],
-#         [County] AS [county],
-#         [Postcode] AS [postcode],
-#         [Country] AS [country],
-#         COALESCE([Tel Num], [Mobile_Phone_number]) AS [phone],
-#         [email] AS [email]
-#     FROM [integration].[vw_woodsnoncampaignspecificdailyexport_clean] AS [a]
-#         INNER JOIN [integration].[contact_matching] AS [b]
-#             ON [b].[source_hashkey] = [a].[contacthashkey]
-#             AND [b].[matched] IS NULL
-#         """
-#         if self.supjob_id != '00000000-0000-0000-0000-000000000000':
-#             query += f"WHERE [a].[jobid] IN (SELECT [id] FROM [log].[jobdetail] WHERE [jobid] = '{self.supjob_id}')"
-#         query += f"""
-# )
-# SELECT 'source' AS [origin], * FROM [matching_source]
-# UNION
-# SELECT 'target' AS [origin], 
-#     [target].[contacthashkey],
-#     [target].[title],
-#     [target].[forename],
-#     [target].[surname],
-#     [target].[date_of_birth],
-#     [target].[sex],
-#     [target].[street],
-#     [target].[address],
-#     [target].[city],
-#     [target].[county],
-#     [target].[postcode],
-#     [target].[country],
-#     [target].[phone],
-#     [target].[email]
-# FROM [integration].[vw_contact_matching_target] AS [target]
-# WHERE [target].[postcode] IN (SELECT [postcode] FROM [matching_source])
-#         """
-#         df = self.mdw.select_to_dataframe(query)
-#         return standardiser(df)
+            LOG.info(f'Cleaning completed successfully.\n{cleaning_result}')
+            self.job_end("Complete")
+        return cleaning_result
     
     def reset_azure_container(
         self,
@@ -971,14 +945,15 @@ SELECT @error AS [error_detail]
         job_name: str, 
         purge_mdw: bool,
         purge_stg: bool,
-        purge_arc: bool
+        purge_arc: bool,
+        routing_guide: bool
     ):
         """
         ### purge_by_recordsource
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-03-01
 
         #### Explanation: 
         Executes the stored procedure to purge the MDW by record source. Has flags to purge the MDW, the staging schema and the archive schema separately.
@@ -993,27 +968,31 @@ SELECT @error AS [error_detail]
         - purge_mdw (bool): If true, hubs, links and satellites are purged.
         - purge_stg (bool): If true, the staging schema 'stg' is purged.
         - purge_arc (bool): If true, the archive schema 'arc' is purged.
+        - routing_guide (bool): If true, the tables searched through is reduced according to [metadata].[routing].
 
         #### Usage:
         >>> source_control.purge_by_recordsource(
                 job_name = "source_001_purge",
                 purge_mdw = False,
                 purge_stg = True,
-                purge_arc = False
+                purge_arc = False,
+                routing_guide = True
             )
         
         #### History:
+        - 1.1 JRA (2024-03-01): Added routing_guide.
         - 1.0 JRA (2024-01-30): Initial version.
         """
         self.job_start(job_name)
         self.mdw.execute_query(
-            f"EXECUTE [utl].[usp_purge_by_recordsource] @source = ?, @aspect = ?, @purge_mdw = ?, @purge_stg = ?, @purge_arc = ?, @commit = 1, @display = 0", 
+            f"EXECUTE [utl].[usp_purge_by_recordsource] @source = ?, @aspect = ?, @purge_mdw = ?, @purge_stg = ?, @purge_arc = ?, @routing_guide = ?, @commit = 1, @print = 0, @display = 0", 
             values = (
                 self.source, 
                 self.aspect, 
                 int(purge_mdw), 
                 int(purge_stg), 
-                int(purge_arc)
+                int(purge_arc),
+                int(routing_guide)
             )
         )
         self.job_end('Complete')
@@ -1366,3 +1345,82 @@ def mdw_basic_query_builder(source: str, links: list[tuple[str]]) -> tuple[str, 
     sql = loaddate + "\n\t\t) AS [T]([loaddate])\n\t) AS [loaddate],\n\t*\n" + sql
     return sql, legend
 
+def mdw_network_v1(mdw: SQLHandler):
+    import networkx as nx
+    import matplotlib.pyplot as plt
+    network = nx.Graph()
+    colours = []
+
+    hubs = mdw.execute_query("SELECT LOWER([name]) FROM sys.tables WHERE [schema_id] = SCHEMA_ID('hub')").transpose(row_based = False).data[0]
+    network.add_nodes_from(['hub.' + hub for hub in hubs])
+    colours += len(hubs)*['green']
+
+    sats = mdw.execute_query("SELECT LOWER([name]) FROM sys.tables WHERE [schema_id] = SCHEMA_ID('sat')").transpose(row_based = False).data[0]
+    network.add_nodes_from(['sat.' + sat for sat in sats])
+    colours += len(sats)*['red']
+
+    links = mdw.execute_query("SELECT LOWER([name]) FROM sys.tables WHERE [schema_id] = SCHEMA_ID('link')").transpose(row_based = False).data[0]
+    network.add_nodes_from(['link.' + link for link in links])
+    colours += len(links)*['blue']
+
+    for hub in hubs:
+        for sat in sats:
+            if hub in sat:
+                network.add_edge('hub.' + hub, 'sat.' + sat)
+        for link in links:
+            if link.startswith(hub) or link.endswith(hub):
+                network.add_edge('hub.' + hub, 'link.' + link)
+
+    nx.draw(
+        network,
+        pos = nx.spring_layout(network, k = 0.35),
+        with_labels = True, 
+        node_color = colours, 
+        font_size = 2,
+        node_size = 10,
+        edge_color = 'gray',
+        width = 0.5
+    )
+    plt.savefig(f'mdwnetworkv1.svg')
+    plt.savefig(f'mdwnetworkv1.png')
+    plt.clf()
+    return
+
+def mdw_network_v2(mdw: SQLHandler):
+    import networkx as nx
+    import matplotlib.pyplot as plt
+    network = nx.Graph()
+    colours = []
+
+    hubs = mdw.execute_query("SELECT LOWER([name]) FROM sys.tables WHERE [schema_id] = SCHEMA_ID('hub')").transpose(row_based = False).data[0]
+    network.add_nodes_from(['hub.' + hub for hub in hubs])
+    colours += len(hubs)*['green']
+
+    sats = mdw.execute_query("SELECT LOWER([name]) FROM sys.tables WHERE [schema_id] = SCHEMA_ID('sat')").transpose(row_based = False).data[0]
+    network.add_nodes_from(['sat.' + sat for sat in sats])
+    colours += len(sats)*['red']
+
+    links = mdw.execute_query("SELECT LOWER([name]) FROM sys.tables WHERE [schema_id] = SCHEMA_ID('link')").transpose(row_based = False).data[0]
+
+    for hub in hubs:
+        for sat in sats:
+            if hub in sat:
+                network.add_edge('hub.' + hub, 'sat.' + sat)
+        for hub2 in hubs:
+            if hub + hub2 in links:
+                network.add_edge('hub.' + hub, 'hub.' + hub2)
+
+    nx.draw(
+        network,
+        pos = nx.spring_layout(network, k = 0.35),
+        with_labels = True, 
+        node_color = colours, 
+        font_size = 2,
+        node_size = 10,
+        edge_color = 'gray',
+        width = 0.5
+    )
+    plt.savefig(f'mdwnetworkv2.svg')
+    plt.savefig(f'mdwnetworkv2.png')
+    plt.clf()
+    return
