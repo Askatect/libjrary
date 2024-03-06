@@ -1,9 +1,9 @@
 """
 # azureblobstore.py
 
-Version: 1.3
+Version: 1.4
 Authors: JRA
-Date: 2024-03-01
+Date: 2024-03-04
 
 #### Explanation:
 Contains the AzureBlobHandler class for handling Azure blobs.
@@ -24,7 +24,8 @@ Contains the AzureBlobHandler class for handling Azure blobs.
 >>> from pyjra.azureblobstore import AzureBlobHandler
 
 #### History:
-- 1.3 JRA (2024-02-29): AzureBlobHandler v1.3.
+- 1.4 JRA (2024-03-04): AzureBlobHandler v1.4.
+- 1.3 JRA (2024-03-01): AzureBlobHandler v1.3.
 - 1.2 JRA (2024-02-29): AzureBlobHandler v1.2.
 - 1.1 JRA (2024-02-27): AzureBlobHandler v1.1.
 - 1.0 JRA (2024-02-06): Initial version.
@@ -43,9 +44,9 @@ class AzureBlobHandler:
     """
     ## AzureBlobHandler
 
-    Version: 1.3
+    Version: 1.4
     Authors: JRA
-    Date: 2024-03-01
+    Date: 2024-03-04
 
     #### Explanation:
     Handles Azure blobs.
@@ -75,6 +76,7 @@ class AzureBlobHandler:
     ['folder/file.ext', 'data.csv']
 
     #### History:
+    - 1.4 JRA (2024-03-04): write_to_blob_csv v1.3.
     - 1.3 JRA (2024-03-01): write_to_blob_csv v1.2.
     - 1.2 JRA (2024-02-29): Added write_to_blob_csv.
     - 1.1 JRA (2024-02-27): Added get_blob_csv_as_stream.
@@ -432,14 +434,15 @@ class AzureBlobHandler:
         container: str, 
         blob: str, 
         data: Tabular|pd.DataFrame,
-        encoding: str = 'utf-8'
+        encoding: str = 'utf-8',
+        force: bool = False
     ):
         """
         ### write_to_blob_csv
 
-        Version: 1.2
+        Version: 1.3
         Authors: JRA
-        Date: 2024-03-01
+        Date: 2024-03-04
 
         #### Explanation:
         Writes a blob csv from a DataFrame or pyjra.utilities.Tabular into the specified container.
@@ -449,11 +452,13 @@ class AzureBlobHandler:
         - blob (str): The name of the blob to write to.
         - data (pyjra.utilities.Tabular|pandas.DataFrame): The data to convert to CSV.
         - encoding (str): The encoding to store the blob with. Defaults to utf-8.
+        - force (bool): If true, any existing blob of the same name is overwritten. Defaults to false.
 
         #### Usage:
         >>> write_to_blob_csv('container', 'folder/file.csv', data)
 
         #### History:
+        - 1.3 JRA (2024-03-04): Added force.
         - 1.2 JRA (2024-03-01): Added encoding.
         - 1.1 JRA (2024-02-29): Added support for pyjra.utilities.Tabular.
         - 1.0 JRA (2024-02-06): Initial version.
@@ -473,5 +478,5 @@ class AzureBlobHandler:
             LOG.error(error)
             raise ValueError(error)
         container_client = self.__storage_client.get_container_client(container = container)
-        container_client.upload_blob(name = blob, data = data)
+        container_client.upload_blob(name = blob, data = data, overwrite = force)
         return

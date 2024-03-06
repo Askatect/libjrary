@@ -1,3 +1,44 @@
+"""
+# pyjra.utilities
+
+Version: 1.0
+Authors: JRA
+Date: 2024-03-05
+
+#### Explanation:
+Useful Python utility items.
+
+#### Requirements:
+- pyjra.logger.LOG (const)
+- pandas.DataFrame (class)
+- io.StringIO (class)
+- csv.reader (func)
+
+#### Artefacts:
+- justify_text (func): Fits text into a column of a given width.
+- align_text (func): Aligns a given text (as a string) to a particular width and alignment.
+- tabulate (func): Converts a given table to a formatted text table as a string.
+- format_json (func): Formats a JSON string into a pretty format.
+- extract_param (func): Extracts a parameter from a string, particularly for connection strings.
+- validate_date (func): Checks a string to see if it contains valid datetime components.
+- rgb_to_hex (func): Converts RGB to a hexcode.
+- hex_to_rgb (func): Converts a hexcode to RGB.
+- hsl_to_rgb (func): Converts HSL to RGB.
+- rgb_to_hsl (func): Converts RGB to HSL.
+- hex_to_hsl (func): Converts hexcodes to HSL.
+- hsl_to_hex (func): Converts HSL to hexcode.
+- linear_interpolation (func): Performs a linear interpolation.
+- gradient_rgb (func): Finds colour on a linear gradient as an RGB value.
+- gradient_hex (func): Finds colour on a linear gradient as a hexcode.
+- Tabular (class): Class for handling tabulated data.
+
+#### Usage:
+>>> import pyjra.utilities
+>>> from pyjra.utilities import Tabular
+
+#### History:
+- 1.0 JRA (2024-03-05): Initial version.
+"""
 from pyjra.logger import LOG
 
 from pandas import DataFrame
@@ -133,6 +174,9 @@ def tabulate(table: list[tuple[str]], header: int = 1, null: str = '', name: str
 
     #### Explanation:
     Converts a given table to a formatted text table as a string.
+
+    #### Requirements:
+    - align_text (func)
 
     #### Parameters:
     - table (list[list[str]]): The table to format as a list of rows, and each row a list of values.
@@ -328,6 +372,35 @@ def format_json(json: str) -> str:
     return json
 
 def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search: bool = True):
+    """
+    ### extract_param
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Extracts a parameter from a string, particularly for connection strings.
+
+    #### Parameters:
+    - string (str): The string to extract from.
+    - prefix (str): Substring indicating the start of the parameter.
+    - suffix (str): Substring indicating the end of the parameter.
+    - case_insensitive_search (bool): If true, the case of all involved strings is ignored. Defaults to true.
+
+    #### Returns:
+    - None if prefix not found else the parameter substring.
+
+    #### Usage:
+    >>> extract_param('server=server_name;database=db_name;encrypt=yes', 'database=', ';', True)
+    'db_name'
+    
+    #### Tasklist:
+    - Make this more like [jra].[ufn_extract_param] by adding an option to include the prefix and/or suffix.
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     if case_insensitive_search:
         search_string = string.lower()
         prefix = prefix.lower()
@@ -342,6 +415,33 @@ def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search
     return string[prefix_loc:suffix_loc]
 
 def validate_date(datestring: str, format: str = '%Y-%m-%d'):
+    """
+    ### validate_date
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Checks a string to see if it contains valid datetime components.
+
+    #### Requirements:
+    - datetime.datetime
+
+    #### Parameters:
+    - datestring (str): The string to validate.
+    - format (str): The format to validate against, using Python datetime codes.
+
+    #### Returns:
+    - None if date is invalid else date (datetime) of datetime components found.
+
+    #### Usage:
+    >>> validate_date('Birthday: 03/10/1999', 'Birthday: %d/%m/%Y')
+    datetime.datetime(1999, 10, 3, 0, 0)
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     from datetime import datetime
     try:
         date = datetime.strptime(datestring, format)
@@ -351,18 +451,101 @@ def validate_date(datestring: str, format: str = '%Y-%m-%d'):
     else:
         return date
 
-def rgb_to_hex(rgb: tuple):
+def rgb_to_hex(rgb: tuple[int]):
+    """
+    ### rgb_to_hex
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Converts RGB to a hexcode.
+
+    #### Parameters:
+    - rgb (tuple[int]): RGB values.
+
+    #### Returns:
+    - hexcode (str)
+
+    #### Usage:
+    >>> rgb_to_hex((24, 72, 72))
+    '#184848'
+
+    #### Tasklist:
+    - Add validation to ensure that RGB values are integers in [0, 256).
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     hexcode = "#"
     for value in rgb:
         hexcode += f"{value:02x}"
     return hexcode
 
 def hex_to_rgb(hexcode: str):
+    """
+    ### hex_to_rgb
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-05-03
+
+    #### Explanation:
+    Converts a hexcode to RGB.
+
+    #### Parameters:
+    - hexcode (str): The hexcode to convert.
+
+    #### Returns:
+    - (tuple[int])
+
+    #### Usage:
+    >>> hex_to_rgb('#184848')
+    (24, 72, 72)
+    >>> hex_to_rgb('#FFF')
+    (255, 255, 255)
+
+    #### Tasklist: 
+    - Add validation to ensure an actual hexcode is received.
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     hexcode = hexcode.lstrip('#')
     l = len(hexcode)//3
     return tuple(int(hexcode[i:i + l], 16) for i in range(0, 3*l, l))
 
 def hsl_to_rgb(hsl: tuple):
+    """
+    ### hsl_to_rgb
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Converts HSL to RGB.
+
+    #### Parameters:
+    - hsl (tuple): The HSL code, given as the following:
+        - (int): Hue in degrees.
+        - (float): Saturation in [0, 1].
+        - (float): Lightness in [0, 1].
+    
+    #### Returns:
+    - (tuple[int])
+
+    #### Usage:
+    >>> hsl_to_rgb((180, .5, .19))
+    (24, 72, 72)
+
+    #### Tasklist:
+    - Ensure valid HSL is received.
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     h = hsl[0]
     l = hsl[2]
     c = (1 - abs(2*l - 1))*hsl[1]
@@ -382,7 +565,36 @@ def hsl_to_rgb(hsl: tuple):
         rgb = (c, 0, x)
     return tuple(int(255*(value + m)) for value in rgb)
 
-def rgb_to_hsl(rgb: tuple):
+def rgb_to_hsl(rgb: tuple[int]):
+    """
+    ### rgb_to_hsl
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Converts RGB to HSL.
+
+    #### Parameters:
+    - rgb (tuple[int]): The RGB value to convert.
+
+    #### Returns:
+    - (tuple): The HSL code, given as the following:
+        - (int): Hue in degrees.
+        - (float): Saturation in [0, 1].
+        - (float): Lightness in [0, 1].
+    
+    #### Usage:
+    >>> rgb_to_hsl((24, 72, 72))
+    (180, .5, .19)
+
+    #### Tasklist:
+    - Ensure RGB is received.
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     r = rgb[0]/255.0
     g = rgb[1]/255.0
     b = rgb[2]/255.0
@@ -404,24 +616,260 @@ def rgb_to_hsl(rgb: tuple):
     return (int(h), s, l)
 
 def hex_to_hsl(hexcode: str):
+    """
+    ### hex_to_hsl
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Converts hexcodes to HSL.
+
+    #### Requirements:
+    - rbg_to_hsl (func)
+    - hec_to_rgb (func)
+
+    #### Parameters:
+    - hexcode (str): The hexcode to convert.
+
+    #### Returns:
+    - (tuple): The HSL code, given as the following:
+        - (int): Hue in degrees.
+        - (float): Saturation in [0, 1].
+        - (float): Lightness in [0, 1].
+
+    #### Usage:
+    >>> hex_to_hsl('#184848')
+    (180, .5, .19)
+
+    #### History:
+    - 1.0 JRA (2024-05-03): Initial version.
+    """
     return rgb_to_hsl(hex_to_rgb(hexcode))
 
 def hsl_to_hex(hsl: tuple):
+    """
+    ### hsl_to_hex
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Converts HSL to hexcode.
+
+    #### Requirements:
+    - rgb_to_hex (func)
+    - hsl_to_rgb (func)
+
+    #### Parameters:
+    - hsl (tuple): The HSL code, given as the following:
+        - (int): Hue in degrees.
+        - (float): Saturation in [0, 1].
+        - (float): Lightness in [0, 1].
+
+    #### Returns:
+    - (str)
+
+    #### Usage:
+    >>> hsl_to_hex((180, .5, .19))
+    '#184848'
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     return rgb_to_hex(hsl_to_rgb(hsl))
 
-def linear_interpolation(x, xmin, xmax, ymin, ymax):
+def linear_interpolation(
+    x: int|float, 
+    xmin: int|float, 
+    xmax: int|float, 
+    ymin: int|float, 
+    ymax: int|float
+):
+    """
+    ### linear_interpolation
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Performs a linear interpolation.
+
+    #### Parameters:
+    - x (int|float): The x value of the domain.
+    - xmin (int|float): The lower bound of the domain.
+    - xmax (int|float): The upper bound of the domain.
+    - ymin (int|float): The lower bound of the range.
+    - ymax (int|float): The upper bound of the range.
+
+    #### Returns:
+    - (float): The interpolated value in the range. The lower bound of the range is returned if the domain has measure zero.
+
+    #### Usage:
+    >>> linear_interpolation(1, 0, 2, -10, 10)
+    0.
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     if xmin == xmax:
         return ymin
     else:
         return ymin + (ymax - ymin)*(x - xmin)/(xmax - xmin)
 
-def gradient_rgb(target, lower, upper, rgbmin, rgbmax):
+def gradient_rgb(
+    target: int|float, 
+    lower: int|float, 
+    upper: int|float, 
+    rgbmin: tuple[int], 
+    rgbmax: tuple[int]
+):
+    """
+    ### gradient_rgb
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Finds colour on a linear gradient as an RGB value.
+
+    #### Requirements:
+    - linear_interpolation (func)
+
+    #### Parameters:
+    - target (int|float): The value to map into the linear gradient.
+    - lower (int|float): The lower bound of the domain.
+    - upper (int|float): The upper bound of the domain.
+    - rgbmin (tuple[int]): The start of the gradient as RGB.
+    - rgbmax (tuple[int]): The end of the gradient as RGB.
+
+    #### Returns:
+    - (tuple[int])
+
+    #### Usage:
+    >>> gradient_rgb(1, 0, 2, (0, 0, 0), (24, 72, 72))
+    (12, 36, 36)
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     return tuple(int(linear_interpolation(target, lower, upper, rgbmin[i], rgbmax[i])) for i in range(0, 3))
 
-def gradient_hex(target, lower, upper, hexmin, hexmax):
+def gradient_hex(
+    target: int|float, 
+    lower: int|float, 
+    upper: int|float, 
+    hexmin: int|float, 
+    hexmax: int|float
+):
+    """
+    ### gradient_hex
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Finds colour on a linear gradient as a hexcode.
+    
+    #### Requirements:
+    - rgb_to_hex (func)
+    - gradient_rgb (func)
+    - hex_to_rgb (func)
+
+    #### Parameters:
+    - target (int|float): The value to map into the linear gradient.
+    - lower (int|float): The lower bound of the domain.
+    - upper (int|float): The upper bound of the domain.
+    - hexmin (tuple[int]): The start of the gradient as a hexcode.
+    - hexmax (tuple[int]): The end of the gradient as a hexcode.
+
+    #### Returns:
+    - (str)
+
+    #### Usage:
+    >>> gradient_hex(1, 0, 2, '#000000', '#184848')
+    '#0C2424'
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     return rgb_to_hex(gradient_rgb(target, lower, upper, hex_to_rgb(hexmin), hex_to_rgb(hexmax)))
 
 class Tabular():
+    """
+    ## Tabular
+
+    Version: 1.0
+    Authors: JRA
+    Date: 2024-03-05
+
+    #### Explanation:
+    Class for handling tabulated data.
+
+    #### Artefacts:
+    - data (list[tuple]): The data stored in the Tabular.
+    - columns (list[str]): The columns of the Tabular.
+    - datatypes (list[type]): The datatypes of the Tabular.
+    - row_count(int): The number of rows in the Tabular.
+    - col_count (int): The number of columns in the Tabular.
+    - row_based (bool): If true, this indicates that the data is stored as a list of rows. If false, the data is stored as a list of columns.
+    - name (str): The name to associate with the Tabular (optional). Defaults to None.
+    - __init__ (func): Initialises the Tabular class.
+    - __str__ (func): Writes the data to a pretty text table.
+    - __repr__ (func): Displays an input that would yield the instance.
+    - __getitem__ (func): Allows use of indexes and slices to produce a new Tabular from a subset of the data of the instance.
+    - __validata (func): The validation process for raw data that checks the following.
+        - Check data is a list.
+        - Get number of columns.
+        - Get number of rows.
+        - Check number of columns or build columns list.
+        - Check that all rows are tuples of the correct length.
+        - Check number datatypes or build datatypes list.
+    - __init_no_check (func): Initialises a Tabular instance without performing validation checks.
+    - tabular_from_tabular (func): Creates a new Tabular object from the existing instance without performing validation checks.
+    - transpose (func): Tranposes the storage of the data between a list of rows and a list of columns.
+    - col_pos (func): Returns the column number of a given column name.
+    - delete_columns (func): Delete columns from the current Tabular.
+    - get_column (func): Retrieves a column from the data.
+    - to_dataframe (func): Converts the Tabular to a pandas DataFrame.
+    - to_dict (func): Returns a row of the data, with columns as keys and cells as values.
+    - to_delimited (func): Returns the Tabular as a delimited string.
+    - to_stream (func): Returns the Tabular as a delimited string stream.
+    - to_html (func): Returns the Tabular as a HTML table.
+
+    #### Usage:
+    >>> matrix = Tabular(
+            data = [(1, 2, 3), (4, 5, 6), (7, 8, 9)]
+            columns = ['v1', 'v2', 'v3']
+            name = 'Matrix'
+        )
+    >>> matrix.transpose()
+    >>> str(matrix)
+    '''
+    ╔══════════════╗
+    ║    Matrix    ║
+    ╚══════════════╝
+    ╒════╤════╤════╕
+    │ v1 │ v2 │ v3 │
+    ╞════╪════╪════╡
+    │  1 │  4 │  7 │
+    ├────┼────┼────┤
+    │  2 │  5 │  8 │
+    ├────┼────┼────┤
+    │  3 │  6 │  9 │
+    ╘════╧════╧════╛
+    '''
+    >>> matrix.datatypes
+    [<class 'int'>, <class 'int'>, <class 'int'>]
+
+    #### History:
+    - 1.0 JRA (2024-03-05): Initial version.
+    """
     def __init__(
         self, 
         data: list[tuple]|DataFrame|str|StringIO|dict, 
@@ -432,6 +880,39 @@ class Tabular():
         header: bool = True,
         name: str = None
     ):
+        """
+        ### __init__
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Initialises the Tabular class.
+
+        #### Requirements:
+        - Tabular.__validata (func)
+        - Tabular.transpose (func)
+
+        #### Parameters:
+        - data (list[tuple]): The data stored in the Tabular.
+        - columns (list[str]): The columns of the Tabular.
+        - datatypes (list[type]): The datatypes of the Tabular.
+        - row_count(int): The number of rows in the Tabular.
+        - col_count (int): The number of columns in the Tabular.
+        - row_based (bool): If true, this indicates that the data is stored as a list of rows. If false, the data is stored as a list of columns.
+        - name (str): The name to associate with the Tabular (optional). Defaults to None.
+
+        #### Usage:
+        >>> Tabular(
+                data = [(1, 2, 3), (4, 5, 6), (7, 8, 9)],
+                columns = ['v1', 'v2', 'v3'],
+                name = 'Matrix'
+            )
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
         # Check columns come as a list of strings.
         if not(columns is None or (isinstance(columns, list) and all(isinstance(item, str) for item in columns))):
             error = "The columns should be a list of strings."
@@ -493,7 +974,7 @@ class Tabular():
             self.columns = data.keys()
             self.data = [tuple(data.values())]
 
-        self.name = name or 'Tabular'
+        self.name = name
         self.row_based = True
         
         # Validate datatypes.
@@ -521,14 +1002,102 @@ class Tabular():
         return
     
     def __str__(self) -> str:
+        """
+        ### __str__
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Writes the data to a pretty text table.
+
+        #### Requirements:
+        - tabulate (func)
+
+        #### Returns:
+        - (str)
+
+        #### Usage:
+        >>> print(matrix)
+        ╔══════════════╗
+        ║    Matrix    ║
+        ╚══════════════╝
+        ╒════╤════╤════╕
+        │ v1 │ v2 │ v3 │
+        ╞════╪════╪════╡
+        │  1 │  2 │  3 │
+        ├────┼────┼────┤
+        │  4 │  5 │  6 │
+        ├────┼────┼────┤
+        │  7 │  8 │  9 │
+        ╘════╧════╧════╛
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
         self.transpose(row_based = True)
         return tabulate(table = [tuple(self.columns)] + self.data, header = 1, name = self.name)
     
     def __repr__(self) -> str:
+        """
+        ### __repr__
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Displays an input that would yield the instance.
+
+        #### Requirements:
+        - Tabular.transpose (func)
+
+        #### Returns:
+        - (str)
+
+        #### Usage:
+        >>> matrix.__repr__()
+        Tabular(
+            data = [(1, 2, 3), (4, 5, 6), (7, 8, 9)],
+            columns = ['v1', 'v2', 'v3'],
+            datatypes = ["<class 'int'>", "<class 'int'>", "<class 'int'>"]
+        )
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
         self.transpose(row_based = True)
-        return f"Tabular(\n\tdata = {self.data},\n\tcolumns = {self.columns or 'None'},\n\tdatatypes = {[str(datatype) for datatype in self.datatypes] or 'None'}\n)"
+        return f"Tabular(\n\tdata = {self.data},\n\tcolumns = {self.columns or 'None'},\n\tdatatypes = {[str(datatype) for datatype in self.datatypes] or 'None'}\n\tname = {self.name})"
     
     def __getitem__(self, key: int|list[int]|slice):
+        """
+        ### __getitem__
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Allows use of indexes and slices to produce a new Tabular from a subset of the data of the instance.
+
+        #### Requirements:
+        - Tabular.taular_from_tabular (func)
+
+        #### Parameters:
+        - key (int|list[int]|slice)
+
+        #### Returns:
+        - (Tabular)
+
+        #### Usage:
+        >>> matrix[1:3]
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
+        self.transpose(row_based = True)
+
         if isinstance(key, int):
             return self.tabular_from_tabular(
                 data = self.data[key],
@@ -563,7 +1132,7 @@ class Tabular():
                 row_based = self.row_based
             )
         else:
-            error = f"Invalid key passed to {self}."
+            error = f"Invalid key passed to {self.name or 'Tabular'}."
             LOG.error(error)
             raise ValueError(error)
                 
@@ -573,6 +1142,33 @@ class Tabular():
         columns: list[str] = None,
         datatypes: list[str] = None
     ):
+        """
+        ### __validata
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        The validation process for raw data that checks the following.
+            - Check data is a list.
+            - Get number of columns.
+            - Get number of rows.
+            - Check number of columns or build columns list.
+            - Check that all rows are tuples of the correct length.
+            - Check number datatypes or build datatypes list.
+
+        #### Parameters:
+        - data (list[tuple]): The data stored in the Tabular.
+        - columns (list[str]): The columns of the Tabular.
+        - datatypes (list[type]): The datatypes of the Tabular.
+        
+        #### Usage:
+        >>> matrix.__validata(data = [(1, 2, 3), (4, 5, 6), (7, 8, 9)], columns = ['v1', 'v2', 'v3'])
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
         # Check data is a list.
         if not isinstance(data, list):
             return "The `data` parameter should be a list."
@@ -627,14 +1223,49 @@ class Tabular():
         datatypes: list[type], 
         row_count: int, 
         col_count: int, 
-        row_based: bool
+        row_based: bool,
+        name: str|None = None
     ):
+        """
+        ### __init_no_check
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Initialises a Tabular instance without performing validation checks.
+
+        #### Parameters:
+        - data (list[tuple]): The data stored in the Tabular.
+        - columns (list[str]): The columns of the Tabular.
+        - datatypes (list[type]): The datatypes of the Tabular.
+        - row_count(int): The number of rows in the Tabular.
+        - col_count (int): The number of columns in the Tabular.
+        - row_based (bool): If true, this indicates that the data is stored as a list of rows. If false, the data is stored as a list of columns.
+        - name (str): The name to associate with the Tabular (optional). Defaults to None.
+
+        #### Usage:
+        >>> matrix = __init_no_check(
+                data = [(1, 2, 3), (4, 5, 6), (7, 8, 9)]
+                columns = ['v1', 'v2', 'v3'],
+                datatypes = [<class 'int'>, <class 'int'>, <class 'int'>],
+                row_count = 3,
+                col_count = 3,
+                row_based = True,
+                name = 'Matrix'
+            )
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
         self.datatypes = datatypes
         self.columns = columns
         self.data = data
         self.row_count = row_count
         self.col_count = col_count
         self.row_based = row_based
+        self.name = name
         return
     
     @staticmethod
@@ -644,8 +1275,48 @@ class Tabular():
         datatypes: list[type], 
         row_count: int, 
         col_count: int, 
-        row_based: bool
+        row_based: bool,
+        name: str|None = None
     ):
+        """
+        ### tabular_from_tabular
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-50
+
+        #### Explanation:
+        Creates a new Tabular object from the existing instance without performing validation checks.
+        
+        #### Requirements:
+        - Tabular.__init_no_check (func)
+
+        #### Parameters:
+        - data (list[tuple]): The data stored in the Tabular.
+        - columns (list[str]): The columns of the Tabular.
+        - datatypes (list[type]): The datatypes of the Tabular.
+        - row_count(int): The number of rows in the Tabular.
+        - col_count (int): The number of columns in the Tabular.
+        - row_based (bool): If true, this indicates that the data is stored as a list of rows. If false, the data is stored as a list of columns.
+        - name (str): The name to associate with the Tabular (optional). Defaults to None.
+
+        #### Returns:
+        - output (Tabular)
+
+        #### Usage:
+        >>> matrix = tabular_from_tabular(
+                data = [(1, 2, 3), (4, 5, 6), (7, 8, 9)]
+                columns = ['v1', 'v2', 'v3'],
+                datatypes = [<class 'int'>, <class 'int'>, <class 'int'>],
+                row_count = 3,
+                col_count = 3,
+                row_based = True,
+                name = 'Matrix'
+            )
+
+        #### History: 
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
         output = Tabular.__new__(Tabular)
         output.__init_no_check(
             data,
@@ -653,11 +1324,34 @@ class Tabular():
             datatypes, 
             row_count, 
             col_count, 
-            row_based
+            row_based,
+            name
         )
         return output
 
     def transpose(self, row_based: bool = None):
+        """
+        ### transpose
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Tranposes the storage of the data between a list of rows and a list of columns.
+
+        #### Parameters:
+        - row_based (bool): If true, Tabular data will be stored as a list of rows. If false, Tabular data will be stored as a list of columns. If None, the storage method is inverted. Defaults to None.
+
+        #### Returns:
+        - self (Tabular)
+
+        #### Usage:
+        >>> matrix.transpose()
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
         if row_based is not None:
             if self.row_based == row_based:
                 return
@@ -675,6 +1369,29 @@ class Tabular():
         return self
     
     def col_pos(self, col: str) -> int:
+        """
+        ### col_pos
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Returns the column number of a given column name.
+
+        #### Parameters:
+        - col (str): The column to find the position number of.
+
+        #### Returns:
+        - (int)
+
+        #### Usage:
+        >>> matrix.col_pos('v1')
+        0
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
         if col in self.columns:
             return self.columns.index(col)
         else:
@@ -682,7 +1399,90 @@ class Tabular():
             LOG.error(error)
             raise ValueError(error)
         
+    def delete_columns(self, columns: int|str|list[int]|list[str]):
+        """
+        ### delete_columns
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Delete columns from the current Tabular.
+
+        #### Requirements:
+        - Tabular.col_pos
+
+        #### Parameters:
+        - columns (int|str|list[int]|list[str]): The list of column indexes or names to be deleted.
+        
+        #### Returns:
+        - self (Tabular)
+
+        #### Usage:
+        >>> matrix.delete_columns('v1').__repr__()
+        '''
+        Tabular(
+            data = [(2, 3), (5, 6), (8, 9)],
+            columns = ['v2', 'v3'],
+            datatypes = [<class 'int'>, <class 'int'>, <class 'int'>]
+            name = 'Matrix'
+        )
+        '''
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
+        if not isinstance(columns, list):
+            columns = list(columns)
+        for c in range(len(columns)):
+            if isinstance(columns[c], int):
+                if columns[c] >= self.col_count:
+                    columns[c] = None
+            elif isinstance(columns[c], str):
+                try:
+                    columns[c] = self.col_pos(columns[c])
+                except ValueError:
+                    columns[c] = None                    
+        columns = [column for column in columns if column is not None]
+        self.transpose(row_based = False)
+        for c in columns:
+            del self.data[c]
+            del self.columns[c]
+            del self.datatypes[c]
+        self.col_count -= len(columns)
+        self.transpose(row_based = True)
+        return self
+
+        
     def get_column(self, column: int|str) -> tuple:
+        """
+        ### get_column
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Retrieves a column from the data.
+
+        #### Requirements:
+        - Tabular.col_pos (func)
+        - Tabular.transpose (func)
+
+        #### Parameters:
+        - column (int|str): The column name or index to retrieve.
+
+        #### Returns:
+        - (tuple)
+
+        #### Usage:
+        >>> matrix.get_column('v3')
+        (3, 6, 9)
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
         if isinstance(column, str):
             column = self.col_pos(column)
         elif isinstance(column, int):
@@ -690,14 +1490,59 @@ class Tabular():
                 error = f'There are only {self.col_count} columns - there is no column at index {column}.'
                 LOG.error(error)
                 raise AttributeError(error)
-        return self.transpose(row_based = False).data[column]
+        output = self.transpose(row_based = False).data[column]
+        self.transpose(row_based = True)
+        return output
     
     def to_dataframe(self) -> DataFrame:
+        """
+        ### to_dataframe
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Converts the Tabular to a pandas DataFrame.
+
+        #### Returns:
+        - pandas.DataFrame
+
+        #### Usage:
+        >>> matrix.to_dataframe()
+        <pandas.DataFrame>
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
+        self.transpose(row_based = True)
         return DataFrame(data = self.data, columns = self.columns)
     
-    def to_dict(self, row: str|int = 0) -> dict:
-        if isinstance(row, str):
-            row = self.col_pos(row)
+    def to_dict(self, row: int = 0) -> dict:
+        """
+        ### to_dict
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Returns a row of the data, with columns as keys and cells as values.
+
+        #### Parameters:
+        - row (int): The index of the row to return.
+
+        #### Returns:
+        - (dict)
+
+        #### Usage:
+        >>> matrix.to_dict(1)
+        {'v1': 4, 'v2': 5, 'v3': 6}
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
+        self.transpose(row_based = True)
         return dict(zip(self.columns, self.data[row]))
     
     def to_delimited(
@@ -708,6 +1553,38 @@ class Tabular():
         wrap_left: str = '', 
         wrap_right: str = ''
     ) -> str:
+        """
+        ### to_delimited
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Returns the Tabular as a delimited string.
+
+        #### Parameters:
+        - row_separator (str): The delimiter to have between rows. Defaults to newline.
+        - col_separator (str): The delimited to have between columns. Defaults to a comma.
+        - header (bool): If true, the column names form the first row of the output.
+        - wrap_left (str): The string to wrap all cell values with on the left. Defaults to the empty string.
+        - wrap_right (str): The string to wrap all cell values with on the right. Defaults to the empty string.
+        
+        #### Returns:
+        - (str)
+
+        #### Usage:
+        >>> matrix.to_delimited(header = False)
+        '''
+        1,2,3
+        4,5,6
+        7,8,9
+        '''
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
+        self.transpose(row_based = True)
         output = row_separator.join([col_separator.join([wrap_left + str(value or "") + wrap_right for value in row]) for row in self.data])
         if header:
             return col_separator.join([wrap_left + str(value or "") + wrap_right for value in self.columns]) + row_separator + output
@@ -722,11 +1599,41 @@ class Tabular():
         wrap_left: str = '', 
         wrap_right: str = ''
     ) -> StringIO:
+        """
+        ### to_stream
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Returns the Tabular as a delimited string stream.
+
+        #### Requirements:
+        - Tabular.to_delimited (func)
+
+        #### Parameters:
+        - row_separator (str): The delimiter to have between rows. Defaults to newline.
+        - col_separator (str): The delimited to have between columns. Defaults to a comma.
+        - header (bool): If true, the column names form the first row of the output.
+        - wrap_left (str): The string to wrap all cell values with on the left. Defaults to the empty string.
+        - wrap_right (str): The string to wrap all cell values with on the right. Defaults to the empty string.
+
+        #### Returns:
+        - (StringIO)
+
+        #### Usage:
+        >>> matrix.to_stream()
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
+        self.transpose(row_based = True)
         return StringIO(self.to_delimited(row_separator, col_separator, header, wrap_left, wrap_right))
         
     def to_html(
         self, 
-        colours: dict = {
+        colours: dict[str, str] = {
 			'main': '#181848', 
 			'positive': '#1b8c1b', 
 			'null': '#8c8c1b', 
@@ -737,7 +1644,57 @@ class Tabular():
 			'dark_accent': '#541b8c', 
 			'light_accent': '#72abe3'
 		}
-    ):
+    ) -> str:
+        """
+        ### to_html
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-05
+
+        #### Explanation:
+        Returns the Tabular as a HTML table.
+
+        #### Requirements:
+        - Tabular.transpose (func)
+        - gradient_hex (func)
+
+        #### Parameters:
+        - colours (dict[str, str]): The colours to use in the HTML table as hexcodes.
+
+        #### Returns:
+        - html (str)
+
+        #### Usage:
+        >>> matrix.to_html()
+        '''
+        <table id="Matrix";style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid #000000;border-collapse:collapse">
+            <tr style="color:#ffffff">
+                    <th style="background-color:#541b8c;border:2px solid #000000">v1</th>
+                    <th style="background-color:#181848;border:2px solid #000000">v2</th>
+                    <th style="background-color:#181848;border:2px solid #000000">v3</th>
+            </tr>
+            <tr>
+                    <td style="border:2px solid #000000;background-color:#541b8c;color:#ffffff">1</td>
+                    <td style="border:1px solid #000000;background-color:#ffffff;color:#000000">2</td>
+                    <td style="border:1px solid #000000;background-color:#ffffff;color:#000000">3</td>
+            </tr>
+            <tr>
+                    <td style="border:2px solid #000000;background-color:#541b8c;color:#ffffff">4</td>
+                    <td style="border:1px solid #000000;background-color:#b8d5f1;color:#000000">5</td>
+                    <td style="border:1px solid #000000;background-color:#b8d5f1;color:#000000">6</td>
+            </tr>
+            <tr>
+                    <td style="border:2px solid #000000;background-color:#541b8c;color:#ffffff">7</td>
+                    <td style="border:1px solid #000000;background-color:#72abe3;color:#000000">8</td>
+                    <td style="border:1px solid #000000;background-color:#72abe3;color:#000000">9</td>
+            </tr>
+        </table>
+        '''
+
+        #### History:
+        - 1.0 JRA (2024-03-05): Initial version.
+        """
         col_info = []
         for c in range(self.col_count):
             col_info.append({'numeric': False})
@@ -753,7 +1710,7 @@ class Tabular():
             col_info[c]['max'] = max(col)
             col_info[c]['signed'] = (col_info[c]['min'] < 0)
         self.transpose(row_based = True)
-        html = f'<table style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid {colours["black"]};border-collapse:collapse">\n'
+        html = f'<table id="{self.name or "Tabular"}";style="font-size:.9em;font-family:Verdana,Sans-Serif;border:3px solid {colours["black"]};border-collapse:collapse">\n'
         html += f'\t<tr style="color:{colours["white"]}">\n\t\t<th style="background-color:{colours["dark_accent"]};border:2px solid {colours["black"]}">{self.columns[0]}</th>\n'
         for column in self.columns[1:]:
             html += f'\t\t<th style="background-color:{colours["main"]};border:2px solid {colours["black"]}">{column}</th>\n'

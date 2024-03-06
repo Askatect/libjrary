@@ -1,9 +1,9 @@
 """
 # eulib.py
 
-Version: 1.2.7
+Version: 1.2.9
 Authors: JRA
-Date: 2024-03-01
+Date: 2024-03-05
 
 #### Explanation:
 Library of functions and classes that might be useful for Euler DataOps and Analytics.
@@ -35,8 +35,10 @@ Library of functions and classes that might be useful for Euler DataOps and Anal
 - Is standardiser necessary?
 
 #### History:
-- 1.2.7 JRA (2024-02-27): MDWJob v2.7.
-- 1.2.6 JRA (2024-02-27): MDWJob v2.6.
+- 1.2.9 JRA (2024-03-05): MDWJob v2.9.
+- 1.2.8 JRA (2024-03-04): MDWJob v2.8.
+- 1.2.7 JRA (2024-03-01): MDWJob v2.7.
+- 1.2.6 JRA (2024-02-29): MDWJob v2.6.
 - 1.2.5 JRA (2024-02-27): MDWJob v2.5.
 - 1.2.4 JRA (2024-02-23): MDWJob v2.4.
 - 1.2.3 JRA (2024-02-22): MDWJob v2.3.
@@ -128,9 +130,9 @@ class MDWJob:
     """
     ## MDWJob
 
-    Version: 2.7
+    Version: 2.9
     Authors: JRA
-    Date: 2024-03-01
+    Date: 2024-03-05
 
     #### Explanation:
     Handles jobs in an MDW.
@@ -180,8 +182,10 @@ class MDWJob:
     >>> del source_control
 
     #### History:
+    - 2.9 JRA (2024-03-05): purge_by_recordsource v1.2 and __stage_blob v2.4.
+    - 2.8 JRA (2024-03-04): cleaning_and_stewardship v1.2.
     - 2.7 JRA (2024-03-01): purge_by_recordsource v1.1, cleaning_and_stewardship v1.1 and __stage_blob v2.3.
-    - 2.6 JRA (2024-02-29): cleaning_transforms v2.2, cleaning_and_stewardship v1.0
+    - 2.6 JRA (2024-02-29): cleaning_transforms v2.2 and cleaning_and_stewardship v1.0.
     - 2.5 JRA (2024-02-27): supjob_end v1.3, ingest_csv_blobs_to_mdw v2.1 and __stage_blob v2.2.
     - 2.4 JRA (2024-02-23): __stage_blob v2.1.
     - 2.3 JRA (2024-02-22): __stage_blob v2.0.
@@ -578,6 +582,18 @@ class MDWJob:
                 continue
             else:
                 LOG.info(f'Filename "{filename}" is in a correct format.')
+            existing = self.mdw.execute_query(
+                f"""
+                IF (OBJECT_ID('[hub].[{self.source.lower()}]') IS NOT NULL) 
+                    SELECT DISTINCT [File_Id] FROM [hub].[{self.source.lower()}]
+                ELSE 
+                    SELECT NULL AS [File_Id]
+                """
+            ).get_column(0)
+            if filename in existing:
+                azure_storage.rename_blob(container, filename, filename.replace(directory, directory + 'rejected/'))
+                self.job_end('Rejected', f'Filename "{filename.replace(directory, "")}" already exists in the MDW.')
+                continue
             
             LOG.info("Staging file...")
             try:
@@ -636,9 +652,9 @@ class MDWJob:
         """
         ### __stage_blob
 
-        Version: 2.3
+        Version: 2.4
         Authors: JRA
-        Date: 2024-03-01
+        Date: 2024-03-05
 
         #### Explanation:
         Inserts a CSV file into the "stg" schema of the MDW.
@@ -652,6 +668,7 @@ class MDWJob:
         - filename (str)
 
         #### History:
+        - 2.4 JRA (2024-03-05): Stewardship columns are not inserted to staging.
         - 2.3 JRA (2024-03-01): List of retrieved columns is now enumerated.
         - 2.2 JRA (2024-02-27): Fixed a bug where columns weren't being made unique.
         - 2.1 JRA (2024-02-23): Refactored to use Tabular and pandas DataFrame.
@@ -677,6 +694,7 @@ class MDWJob:
             header = True,
             name = filename
         )
+        data.delete_columns(['stewardship', 'validation'])
         columns = ''
         pad = len(str(data.col_count))
         for c, column in enumerate(data.columns):
@@ -796,9 +814,9 @@ class MDWJob:
         """
         ### cleaning_and_stewardship
 
-        Version: 1.1
+        Version: 1.2
         Authors: JRA
-        Date: 2024-03-01
+        Date: 2024-03-04
 
         Explanation:
         Cleans data in a raw integration satellite. Files with no invalid data are ingested into a clean satellite on the same hub and files with invalid data are purged from the MDW and the cleaned data is staged instead.
@@ -821,6 +839,7 @@ class MDWJob:
             )
 
         History:
+        - 1.2 JRA (2024-03-04): Blobs are now overwritten if they already exist in stewardship.
         - 1.1 JRA (2024-03-01): Cleaning and sending to stewardship use the same job name.
         - 1.0 JRA (2024-02-29): Initial version.
         """
@@ -843,7 +862,8 @@ class MDWJob:
                     container = container,
                     blob = filename.replace(directory, directory + 'stewardship/'),
                     data = data,
-                    encoding = 'latin1'
+                    encoding = 'latin1',
+                    force = True
                 )
                 azure_storage.rename_blob(container, filename, filename.replace(directory, directory + 'rejected/'))
                 self.job_end('Stewardship')
@@ -890,17 +910,17 @@ class MDWJob:
         azure_storage: AzureBlobHandler, 
         container: str, 
         folder: str,
-        files: str|list[str] = None
+        files: str|list[str]
     ):
         """
         ### reset_azure_container
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-01-30
+        Date: 2024-03-06
 
         #### Explanation:
-        Given an Azure environment, container and folder, files one subfolder further in are moved up a directory. Useful for readying archived or rejected files for processing.
+        Given an Azure environment, container and folder, files are moved up to the top of the folder. Useful for readying archived or rejected files for processing.
 
         #### Requirements:
         - MDWJob.job_start
@@ -911,7 +931,7 @@ class MDWJob:
         - azure_storage (pyjra.azureblobstore.AzureBlobHandler): The Azure storage client.
         - container (str): The name of the container to work with in Azure storage.
         - folder (str): The name of the folder within the container to work with in Azure storage.
-        - files (str|list[str]): The file(s) to be reset from one level below the given folder to that given folder. Defaults to all possible files.
+        - files (str|list[str]): The files to be reset.
 
         #### Usage: 
         >>> source_control.reset_azure_container(
@@ -922,15 +942,16 @@ class MDWJob:
                 files = "supfolder/subfolder/sample.txt"
             )
 
-        #### History: 
+        #### History:
+        - 1.1 JRA (2024-03-06): Providing filename(s) as input is now mandatory.
         - 1.0 JRA (2024-01-30): Initial version.
         """
+        files = [files] if isinstance(files, str) else files
+
         LOG.info(f"Resetting container {container} on {azure_storage}...")
+        
         filenames = azure_storage.get_blob_names(container)
-        filenames = [filename for filename in filenames if filename.startswith(folder) and filename.count("/") > 1]
-        if files is not None:
-            files = [files] if isinstance(files, str) else files
-            filenames = [filename for filename in filenames if filename in files]
+        filenames = [filename for filename in filenames if filename.startswith(folder) and filename.count("/") > 1 and filename in files]
         if len(filenames) == 0:
             LOG.warning("No files found to reset.")
         self.job_start(job_name, '; '.join(filenames) if len(filenames) > 0 else None)
@@ -946,14 +967,15 @@ class MDWJob:
         purge_mdw: bool,
         purge_stg: bool,
         purge_arc: bool,
-        routing_guide: bool
+        routing_guide: bool,
+        commit: bool = True
     ):
         """
         ### purge_by_recordsource
 
-        Version: 1.1
+        Version: 1.2
         Authors: JRA
-        Date: 2024-03-01
+        Date: 2024-03-05
 
         #### Explanation: 
         Executes the stored procedure to purge the MDW by record source. Has flags to purge the MDW, the staging schema and the archive schema separately.
@@ -969,6 +991,7 @@ class MDWJob:
         - purge_stg (bool): If true, the staging schema 'stg' is purged.
         - purge_arc (bool): If true, the archive schema 'arc' is purged.
         - routing_guide (bool): If true, the tables searched through is reduced according to [metadata].[routing].
+        - commit (bool): If true, purge is committed. Defaults to true.
 
         #### Usage:
         >>> source_control.purge_by_recordsource(
@@ -980,23 +1003,24 @@ class MDWJob:
             )
         
         #### History:
+        - 1.2 JRA (2024-03-05): Added commit and return of purge_result and ensured compatibility with [utl].[usp_purge_by_recordsource] v3.0.
         - 1.1 JRA (2024-03-01): Added routing_guide.
         - 1.0 JRA (2024-01-30): Initial version.
         """
         self.job_start(job_name)
-        self.mdw.execute_query(
-            f"EXECUTE [utl].[usp_purge_by_recordsource] @source = ?, @aspect = ?, @purge_mdw = ?, @purge_stg = ?, @purge_arc = ?, @routing_guide = ?, @commit = 1, @print = 0, @display = 0", 
+        purge_result = self.mdw.execute_query(
+            f"EXECUTE [utl].[usp_purge_by_recordsource] @job_name = ?, @purge_mdw = ?, @purge_stg = ?, @purge_arc = ?, @routing_guide = ?, @commit = ?, @print = 0, @display = 1", 
             values = (
-                self.source, 
-                self.aspect, 
+                self.job_name,
                 int(purge_mdw), 
                 int(purge_stg), 
                 int(purge_arc),
-                int(routing_guide)
+                int(routing_guide),
+                int(commit)
             )
         )
         self.job_end('Complete')
-        return
+        return purge_result
     
     def send_job_notification(self, recipients: str|list[str], log_file: str = None):
         """
