@@ -12,7 +12,6 @@ Useful Python utility items.
 - pyjra.logger.LOG (const)
 - pandas.DataFrame (class)
 - io.StringIO (class)
-- csv.reader (func)
 
 #### Artefacts:
 - justify_text (func): Fits text into a column of a given width.
@@ -37,13 +36,15 @@ Useful Python utility items.
 >>> from pyjra.utilities import Tabular
 
 #### History:
+- 1.1 JRA (2024-03-19): Implemented LOG v2.0.
 - 1.0 JRA (2024-03-05): Initial version.
 """
 from pyjra.logger import LOG
+LOG.define_logging_level('utilities', 16)
+LOG.set_level(min(LOG.level, 16))
 
 from pandas import DataFrame
 from io import StringIO
-from csv import reader
 
 def justify_text(text: str, width: int = 64, tab_length: int = 4) -> str:
     """
@@ -314,7 +315,7 @@ def format_json(json: str) -> str:
     #### History:
     - 1.0 JRA (2024-02-16): Initial version (based on pyjra.formatting.jsonformatterv2).
     """
-    LOG.info("Cleaning JSON and identifying terms...")
+    LOG.utilities("Cleaning JSON and identifying terms...")
     json = json.replace('\n', '').replace('\t', '')
     json_words = []
     word = ''
@@ -338,7 +339,7 @@ def format_json(json: str) -> str:
         else:
             word += char
 
-    LOG.info('Formatting the JSON...')
+    LOG.utilities('Formatting the JSON...')
     json = ''
     levels = []
     value = False
@@ -368,7 +369,7 @@ def format_json(json: str) -> str:
         else:
             json += '\n' + len(levels)*'\t' + word
 
-    LOG.info('Returning formatted JSON.')
+    LOG.utilities('Returning formatted JSON.')
     return json
 
 def extract_param(string: str, prefix: str, suffix: str, case_insensitive_search: bool = True):
@@ -446,7 +447,7 @@ def validate_date(datestring: str, format: str = '%Y-%m-%d'):
     try:
         date = datetime.strptime(datestring, format)
     except:
-        LOG.info(f'String "{datestring}" is not in the format "{format}".')
+        LOG.utilities(f'String "{datestring}" is not in the format "{format}".')
         return None
     else:
         return date
@@ -893,6 +894,7 @@ class Tabular():
         #### Requirements:
         - Tabular.__validata (func)
         - Tabular.transpose (func)
+        - csv.reader (func)
 
         #### Parameters:
         - data (list[tuple]): The data stored in the Tabular.
@@ -913,32 +915,32 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
-        # Check columns come as a list of strings.
+        LOG.utilities('Checking columns are a list of strings...')
         if not(columns is None or (isinstance(columns, list) and all(isinstance(item, str) for item in columns))):
             error = "The columns should be a list of strings."
             LOG.error(error)
             raise ValueError(error)
         
-        # Check datatypes come as a list of Python types.        
+        LOG.utilities('Checking datatypes are a list of Python types...')
         if not(datatypes is None or (isinstance(datatypes, list) and all(isinstance(item, type) for item in datatypes))):
             error = "The data types should be a list of Python types."
             LOG.error(error)
             raise ValueError(error)
 
-        # Check for same number of columns and datatypes.        
+        LOG.utilities('Checking for same number of columns and datatypes...')
         if columns is not None and datatypes is not None and len(columns) != len(datatypes):
             error = "The number of columns supplied did not match the number of datatypes supplied."
             LOG.error(error)
             raise ValueError(error)
         
-        # Check that the separators are strings.        
+        LOG.utilities('Checking that the separators are strings...')
         if not (isinstance(row_separator, str) and isinstance(col_separator, str)):
             error = "The separators must be strings."
             LOG.error(error)
             raise ValueError(error)
         
-        # Extract data from a delimited string or stream.
         if isinstance(data, str) or isinstance(data, StringIO):
+            LOG.utilities('Extracting data from a delimited string or stream...')
             from csv import reader
             if isinstance(data, str):
                 data = StringIO(data)
@@ -952,22 +954,19 @@ class Tabular():
                 columns = columns or None
             self.datatypes = datatypes or len(columns)*[str]
 
-        # Validate list of data rows.
         if isinstance(data, list):
             error = self.__validata(data, columns, datatypes)
             if error is not None:
                 LOG.error(error)
                 raise ValueError(error)
-            
-        # Extract data from DataFrame.
         elif isinstance(data, DataFrame):
+            LOG.utilities('Extracting data from DataFrame...')
             self.row_count, self.col_count = data.shape
             self.datatypes = datatypes or [type(item) for item in data.columns.tolist()]
             self.columns = data.columns.tolist()
             self.data = [tuple(row) for row in data.to_records(index = False)]
-
-        # Extract data from dictionary.
         elif isinstance(data, dict):
+            LOG.utilities('Extracting data from dictionary...')
             self.row_count = 1
             self.col_count = len(data)
             self.datatypes = [type(value) for value in data.values()]
@@ -977,8 +976,8 @@ class Tabular():
         self.name = name
         self.row_based = True
         
-        # Validate datatypes.
         if not(datatypes is None and (isinstance(data, DataFrame) or isinstance(data, dict))):
+            LOG.utilities('Validating datatypes...')
             self.transpose(row_based = False)
             for c in range(self.col_count):
                 datatype = self.datatypes[c]
@@ -996,9 +995,9 @@ class Tabular():
                     error = f"Could not convert column {c + 1} to {datatype}. {e}"
                     LOG.error(error)
                     raise ValueError(e)
-
-        # Ensure row-based storage.
+                
         self.transpose(row_based = True)
+        LOG.utilities(f'Successfully instanced {self.name or 'Tabular'}!')
         return
     
     def __str__(self) -> str:
@@ -1169,11 +1168,11 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
-        # Check data is a list.
+        LOG.utilities('Checking data is a list...')
         if not isinstance(data, list):
             return "The `data` parameter should be a list."
 
-        # Get number of columns.
+        LOG.utilities('Measuring number of columns...')
         if columns is not None:
             self.col_count = len(columns)
         elif datatypes is not None:
@@ -1181,27 +1180,29 @@ class Tabular():
         else:
             self.col_count = len(data[0])
         
-        # Get number of rows.
+        LOG.utilities('Measuring number of rows...')
         self.row_count = len(data)
 
-        # Check number of columns or build columns list.
+        LOG.utilities('Checking number of columns...')
         if columns is not None and len(columns) != self.col_count:
             return "Number of provided columns does not match the data."
         else:
+            LOG.utilities('Building columns list...')
             columns = columns or [f"Column{c + 1}" for c in range(self.col_count)]
 
-        # Check that all rows are tuples of the correct length.
+        LOG.utilities('Checking that all rows are tuples of the correct length...')
         for row in data:
             if not isinstance(row, tuple):
                 return "All rows of data should be tuples."
             if self.col_count != len(row):
                 return "All rows of the data should be the same length and should be the length of the number of columns if supplied."
             
-        # Check number datatypes or build datatypes list.
         if datatypes is not None:
+            LOG.utilities('Checking number datatypes...')
             if len(datatypes) != self.col_count:
                 return "Number of provided datatypes does not match the data."
         else:
+            LOG.utilities('Building datatypes list...')
             datatypes = []
             for c in range(self.col_count):
                 for r in range(self.row_count):
@@ -1266,6 +1267,7 @@ class Tabular():
         self.col_count = col_count
         self.row_based = row_based
         self.name = name
+        LOG.utilities(f'Instanced {name or 'Tabular'} without checks.')
         return
     
     @staticmethod
@@ -1283,7 +1285,7 @@ class Tabular():
 
         Version: 1.0
         Authors: JRA
-        Date: 2024-03-50
+        Date: 2024-03-05
 
         #### Explanation:
         Creates a new Tabular object from the existing instance without performing validation checks.
@@ -1354,15 +1356,18 @@ class Tabular():
         """
         if row_based is not None:
             if self.row_based == row_based:
+                LOG.utilities(f'No tranposition of {self.name or 'Tabular'} required.')
                 return
         else:
             row_based = not self.row_based
         self.row_based = row_based
         data = []
         if row_based:
+            LOG.utilities(f'Transposing {self.name or 'Tabular'} to row-based storage.')
             for r in range(self.row_count):
                 data.append(tuple([self.data[c][r] for c in range(self.col_count)]))
         else:
+            LOG.utilities(f'Transposing {self.name or 'Tabular'} to column-based storage.')
             for c in range(self.col_count):
                 data.append(tuple([self.data[r][c] for r in range(self.row_count)]))
         self.data = data
@@ -1453,7 +1458,6 @@ class Tabular():
         self.col_count -= len(columns)
         self.transpose(row_based = True)
         return self
-
         
     def get_column(self, column: int|str) -> tuple:
         """
@@ -1515,6 +1519,7 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
+        LOG.utilities(f'Writing {self.name or 'Tabular'} to a DataFrame.')
         self.transpose(row_based = True)
         return DataFrame(data = self.data, columns = self.columns)
     
@@ -1542,6 +1547,7 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
+        LOG.utilities(f'Writing row {row} of {self.name or 'Tabular'} to a dictionary.')
         self.transpose(row_based = True)
         return dict(zip(self.columns, self.data[row]))
     
@@ -1584,6 +1590,7 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
+        LOG.utilities(f'Writing {self.name or 'Tabular'} to a delimited string.')
         self.transpose(row_based = True)
         output = row_separator.join([col_separator.join([wrap_left + str(value or "") + wrap_right for value in row]) for row in self.data])
         if header:
@@ -1628,6 +1635,7 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
+        LOG.utilities(f'Writing {self.name or 'Tabular'} to a stream.')
         self.transpose(row_based = True)
         return StringIO(self.to_delimited(row_separator, col_separator, header, wrap_left, wrap_right))
         
@@ -1695,6 +1703,7 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
+        LOG.utilities(f'Writing {self.name or 'Tabular'} to HTML...')
         col_info = []
         for c in range(self.col_count):
             col_info.append({'numeric': False})
@@ -1738,4 +1747,5 @@ class Tabular():
                 html += f'\t\t<td style="border:1px solid {colours["black"]};background-color:{background};color:{fontcolour}">{str(value)}</td>\n'
             html += '\t</tr>\n'
         html += '</table>'
+        LOG.utilities(f'Successfully wrote {self.name or 'Tabular'} to HTML.')
         return html

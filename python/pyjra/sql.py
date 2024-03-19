@@ -1,7 +1,7 @@
 """
 # sql.py
 
-Version: 3.1
+Version: 3.2
 Authors: JRA
 Date: 2024-02-23
 
@@ -23,16 +23,19 @@ Contains the sqlhandler class for operating on SQL Server databases.
 >>> from pyjra.sql import SQLHandler
 
 #### History:
+- 3.2 JRA (2024-03-19): Implemented LOG v2.0.
 - 3.1 JRA (2024-02-23): Tabular implementation bug fixes.
 - 3.0 JRA (2024-02-19): Implemented Tabular and removed select_to_dataframe and query_columns.
 - 2.0 JRA (2024-02-12): Revamped error handling.
 - 1.1 JRA (2024-02-09): Added retry_wait.
 - 1.0 JRA (2024-02-08): Initial version.
 """
-from pyjra.logger import LOG
-
 from pyjra.utilities import extract_param
 from pyjra.utilities import Tabular
+
+from pyjra.logger import LOG
+LOG.define_logging_level('SQL', 17)
+LOG.set_level(min(LOG.level, 17))
 
 import pandas as pd
 import keyring as kr
@@ -149,11 +152,11 @@ class SQLHandler:
         self.description = ()
         self.retry_wait = retry_wait
         if self.__connection_string is not None:
-            LOG.info("Reading parameters from connection string.")
+            LOG.sql("Reading parameters from connection string.")
             for param in [param for param, value in self.__params.items() if value is None]:
                 self.__params[param] = extract_param(self.__connection_string, param+'=', ';')
         elif environment is not None:
-            LOG.info("Getting parameters from keyring.")
+            LOG.sql("Getting parameters from keyring.")
             for param in [param for param, value in self.__params.items() if value is None]:
                 value = kr.get_password(environment, param)
                 if value is None:
@@ -278,7 +281,7 @@ class SQLHandler:
         if self.connected:
             LOG.error(f"Connection to {str(self)} already open.")
             return
-        LOG.info(f'Attempting to connect to {self}...')
+        LOG.sql(f'Attempting to connect to {self}...')
         retry = True
         while True:
             try:
@@ -288,7 +291,7 @@ class SQLHandler:
                 retry_wait = retry_wait or self.retry_wait
                 if retry and retry_wait is not None:
                     retry = False
-                    LOG.info(f"Waiting {retry_wait} seconds before retrying connection.")
+                    LOG.sql(f"Waiting {retry_wait} seconds before retrying connection.")
                     sleep(retry_wait)
                 else:
                     raise
@@ -301,7 +304,7 @@ class SQLHandler:
             else:
                 self.cursor = self.conn.cursor()
                 self.connected = True
-                LOG.info(f"Successfully connected to {self}.")
+                LOG.sql(f"Successfully connected to {self}.")
                 break
         return self.cursor
     
@@ -325,7 +328,7 @@ class SQLHandler:
         if not self.connected:
             LOG.warning("No open connection to roll back.")
             return
-        LOG.info(f"Rolling back transaction to {str(self)}.")
+        LOG.sql(f"Rolling back transaction to {str(self)}.")
         self.conn.rollback()
         return
     
@@ -349,7 +352,7 @@ class SQLHandler:
         if not self.connected:
             LOG.warning("No open connection to commit.")
             return
-        LOG.info(f"Committing transaction to {str(self)}.")
+        LOG.sql(f"Committing transaction to {str(self)}.")
         self.conn.commit()
         return
 
@@ -388,7 +391,7 @@ class SQLHandler:
         self.cursor.close()
         self.conn.close()
         self.connected = False
-        LOG.info(f"Closed connection to {str(self)}.")
+        LOG.sql(f"Closed connection to {str(self)}.")
         return
     
     # def select_to_dataframe(self, query: str, values: tuple = None) -> pd.DataFrame:
@@ -423,7 +426,7 @@ class SQLHandler:
     #     """
     #     if not self.connected:
     #         self.connect_to_mssql(auto_commit = False)
-    #     LOG.info(f"Generating dataframe against {str(self)}.")
+    #     LOG.sql(f"Generating dataframe against {str(self)}.")
     #     results = self.execute_query(query, values, commit = False)
     #     return results.to_dataframe()
     
@@ -462,7 +465,7 @@ class SQLHandler:
         """
         if not self.connected:
             self.connect_to_mssql(auto_commit = commit)
-        LOG.info(f"Running script against {str(self)}:\n{query}\nValues: {values}.")
+        LOG.sql(f"Running script against {str(self)}:\n{query}\nValues: {values}.")
 
         try:
             if values is None:
@@ -626,10 +629,10 @@ class SQLHandler:
         self.connect_to_mssql(commit)
 
         if prescript is not None:
-            LOG.info(f"Running prescript...")
+            LOG.sql(f"Running prescript...")
             self.execute_query(prescript)
 
-        LOG.info(f"Inserting into {object_name} on {self}...")
+        LOG.sql(f"Inserting into {object_name} on {self}...")
         self.cursor.fast_executemany = fast_execute
         cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(data.columns) + '])' if len(data.columns) > 0 else ''} VALUES ({'?' + (data.col_count - 1)*', ?'})"
         try:
@@ -640,18 +643,18 @@ class SQLHandler:
         except Exception as e:
             LOG.critical(f"Unexpected {type(e)} error occurred whilst performing insert to {object_name} on {self}. {e}")
             raise
-        LOG.info(f"Insert was successful!")
+        LOG.sql(f"Insert was successful!")
         
         if postscript is not None:
-            LOG.info(f"Running postscript...")
+            LOG.sql(f"Running postscript...")
             self.execute_query(postscript)
         self.close_connection(commit = commit)
 
         # try:
-        #     LOG.info(f"Inserting into {object_name} at {str(self)}...")
+        #     LOG.sql(f"Inserting into {object_name} at {str(self)}...")
         #     self.connect_to_mssql(commit)
         #     if prescript is not None:
-        #         LOG.info(f"Running script against {str(self)}:\n{prescript}")
+        #         LOG.sql(f"Running script against {str(self)}:\n{prescript}")
         #         self.cursor.execute(prescript)
         #     self.cursor.fast_executemany = fast_execute
         #     cmd = f"INSERT INTO {object_name}{'([' + '], ['.join(cols) + '])' if len(cols) > 0 else ''} VALUES ({'?' + (len(values[0]) - 1)*', ?'})"
@@ -663,13 +666,13 @@ class SQLHandler:
         #             self.cursor.fast_executemany = False
         #             self.cursor.executemany(cmd, values)
         #     if postscript is not None:
-        #         LOG.info(f"Running script against {str(self)}:\n{postscript}")
+        #         LOG.sql(f"Running script against {str(self)}:\n{postscript}")
         #         self.cursor.execute(postscript)
         # except Exception as e:
         #     self.close_connection(commit = False)
         #     LOG.error(f"Insert failed. Error: {error}.")
         # else:
-        #     LOG.info(f"Insert complete!")
+        #     LOG.sql(f"Insert complete!")
         #     self.close_connection(commit)
         return
     
@@ -718,7 +721,7 @@ class SQLHandler:
         - 1.0 JRA (2024-02-09): Initial version.
         """
         object_name = self.__schema_table_to_object_name(schema, table)
-        LOG.info(f"Creating {object_name} on {self}...")
+        LOG.sql(f"Creating {object_name} on {self}...")
 
         if not replace:
             result = self.execute_query(
@@ -727,7 +730,7 @@ class SQLHandler:
                 commit = False
             ).to_dict(0)['result']
             if result is not None:
-                LOG.info(f"The table {object_name} already exists.")
+                LOG.sql(f"The table {object_name} already exists.")
                 return 1
             cmd = ""
         else:
@@ -745,5 +748,5 @@ class SQLHandler:
 
         cmd += f"CREATE TABLE {object_name} (\n\t{column_definition}\n)"
         self.execute_query(cmd, commit = commit)
-        LOG.info(f"Successfully created table {object_name} at {str(self)}.")
+        LOG.sql(f"Successfully created table {object_name} at {str(self)}.")
         return 1

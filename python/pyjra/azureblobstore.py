@@ -24,16 +24,19 @@ Contains the AzureBlobHandler class for handling Azure blobs.
 >>> from pyjra.azureblobstore import AzureBlobHandler
 
 #### History:
+- 1.5 JRA (2024-03-19): AzureBlobHandler v1.5 and implemented LOG v2.0.
 - 1.4 JRA (2024-03-04): AzureBlobHandler v1.4.
 - 1.3 JRA (2024-03-01): AzureBlobHandler v1.3.
 - 1.2 JRA (2024-02-29): AzureBlobHandler v1.2.
 - 1.1 JRA (2024-02-27): AzureBlobHandler v1.1.
 - 1.0 JRA (2024-02-06): Initial version.
 """
-from pyjra.logger import LOG
-
 from pyjra.utilities import extract_param
 from pyjra.utilities import Tabular
+
+from pyjra.logger import LOG
+LOG.define_logging_level('Azure', 18)
+LOG.set_level(min(LOG.level, 18))
 
 import keyring as kr
 import pandas as pd
@@ -44,9 +47,9 @@ class AzureBlobHandler:
     """
     ## AzureBlobHandler
 
-    Version: 1.4
+    Version: 1.5
     Authors: JRA
-    Date: 2024-03-04
+    Date: 2024-03-19
 
     #### Explanation:
     Handles Azure blobs.
@@ -76,6 +79,7 @@ class AzureBlobHandler:
     ['folder/file.ext', 'data.csv']
 
     #### History:
+    - 1.5 JRA (2024-03-19): write_to_blob_csv v1.4.
     - 1.4 JRA (2024-03-04): write_to_blob_csv v1.3.
     - 1.3 JRA (2024-03-01): write_to_blob_csv v1.2.
     - 1.2 JRA (2024-02-29): Added write_to_blob_csv.
@@ -115,7 +119,7 @@ class AzureBlobHandler:
         elif connection_string is None:
             connection_string = kr.get_password(environment, "blob_connection_string")
         self.__connection_string = connection_string
-        LOG.info(f"Connecting to {str(self)}...")
+        LOG.azure(f"Connecting to {str(self)}...")
         try:
             self.__storage_client = BlobServiceClient.from_connection_string(connection_string)
         except ValueError as e:
@@ -125,7 +129,7 @@ class AzureBlobHandler:
             LOG.error(f"Unexpected {type(e)} error occurred whilst connecting to {self}. {e}")
             raise
         else:
-            LOG.info(f"Successfully connected to {self}.")
+            LOG.azure(f"Successfully connected to {self}.")
             return
     
     def __str__(self):
@@ -171,7 +175,7 @@ class AzureBlobHandler:
         #### History: 
         - 1.0 JRA (2024-02-06): Initial version.
         """
-        LOG.info(f"Getting list of blobs from {container} in {str(self)}.")
+        LOG.azure(f"Getting list of blobs from {container} in {str(self)}.")
         container_client = self.__storage_client.get_container_client(container) 
         return container_client.list_blobs()
     
@@ -196,7 +200,7 @@ class AzureBlobHandler:
         #### History: 
         - 1.0 JRA (2024-02-06): Initial version.
         """
-        LOG.info(f'Getting list of blob names from "{container}" in {str(self)}.')
+        LOG.azure(f'Getting list of blob names from "{container}" in {str(self)}.')
         container_client = self.__storage_client.get_container_client(container) 
         return container_client.list_blob_names()
         
@@ -225,7 +229,7 @@ class AzureBlobHandler:
         #### History:
         - 1.0 JRA (2024-02-06): Initial version.
         """
-        LOG.info(f'Retrieving "{blob}" from "{container}" in {str(self)} as bytes.')
+        LOG.azure(f'Retrieving "{blob}" from "{container}" in {str(self)} as bytes.')
         blob_client = self.__storage_client.get_blob_client(container, blob)
         return blob_client.download_blob().readall()
         
@@ -258,7 +262,7 @@ class AzureBlobHandler:
         #### History:
         - 1.0 JRA (2024-02-06): Initial version.
         """
-        LOG.info(f'Decoding "{blob}" from "{container}" in {str(self)} via {encoding} encoding.')
+        LOG.azure(f'Decoding "{blob}" from "{container}" in {str(self)} via {encoding} encoding.')
         return self.get_blob_as_bytes(container, blob).decode(encoding)
     
     def get_blob_csv_as_stream(self, container: str, blob: str, encoding: str = 'utf-8', row_separator: str = '\n'):
@@ -290,7 +294,7 @@ class AzureBlobHandler:
         History:
         - 1.0 JRA (2024-02-27): Initial version.
         """
-        LOG.info(f'Writing "{blob}" from "{container}" in {str(self)} to string stream.')
+        LOG.azure(f'Writing "{blob}" from "{container}" in {str(self)} to string stream.')
         return StringIO(self.get_blob_as_string(container, blob, encoding), newline = row_separator)
         
     def get_blob_csv_as_dataframe(self, container: str, blob: str, encoding: str = "utf-8", header: int = 0) -> pd.DataFrame:
@@ -323,7 +327,7 @@ class AzureBlobHandler:
         #### History:
         - 1.0 JRA (2024-02-06): Initial version.
         """
-        LOG.info(f'Loading "{blob}" from "{container}" in {str(self)} into a dataframe.')
+        LOG.azure(f'Loading "{blob}" from "{container}" in {str(self)} into a dataframe.')
         return pd.read_csv(StringIO(self.get_blob_as_string(container, blob, encoding)), header = header)
     
     def copy_blob(
@@ -359,7 +363,7 @@ class AzureBlobHandler:
             target_container = source_container
         if target_blob is None and target_container == source_container:
             target_blob = source_blob.replace('.', '_copy.')
-        LOG.info(f'Copying "{source_blob}" from "{source_container}" to "{target_blob}" in "{target_container}" at {str(self)}.')
+        LOG.azure(f'Copying "{source_blob}" from "{source_container}" to "{target_blob}" in "{target_container}" at {str(self)}.')
         source_blob_client = self.__storage_client.get_blob_client(source_container, source_blob)
         target_blob_client = self.__storage_client.get_blob_client(target_container, target_blob)
         target_blob_client.start_copy_from_url(source_blob_client.url)
@@ -386,7 +390,7 @@ class AzureBlobHandler:
         #### History:
         - 1.0 JRA (2024-02-06): Initial version.
         """
-        LOG.info(f'Deleting "{blob}" from "{container}" in {str(self)}.')
+        LOG.azure(f'Deleting "{blob}" from "{container}" in {str(self)}.')
         self.__storage_client.get_blob_client(container, blob).delete_blob()
         return
     
@@ -458,11 +462,13 @@ class AzureBlobHandler:
         >>> write_to_blob_csv('container', 'folder/file.csv', data)
 
         #### History:
+        - 1.4 JRA (2024-03-19): Added logging.
         - 1.3 JRA (2024-03-04): Added force.
         - 1.2 JRA (2024-03-01): Added encoding.
         - 1.1 JRA (2024-02-29): Added support for pyjra.utilities.Tabular.
         - 1.0 JRA (2024-02-06): Initial version.
         """
+        LOG.azure(f'Preparing data for writing to {container} on {self}...')
         if isinstance(data, pd.DataFrame):
             data = data.to_csv(index = False)
         elif isinstance(data, Tabular):
@@ -479,4 +485,5 @@ class AzureBlobHandler:
             raise ValueError(error)
         container_client = self.__storage_client.get_container_client(container = container)
         container_client.upload_blob(name = blob, data = data, overwrite = force)
+        LOG.azure(f'Successfully written blob to {container} on {self}.')
         return

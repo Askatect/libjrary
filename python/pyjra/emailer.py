@@ -23,10 +23,13 @@ Contains the EmailHandler class for sending emails.
 >>> from pyjra.emailer import EmailHandler
 
 #### History:
+- 1.2 JRA (2024-03-19): Implemented LOG v2.0.
 - 1.1 JRA (2024-02-12): Revamped error handling and added __del__ to EmailHandler.
 - 1.0 JRA (2024-02-07): Initial version.
 """
 from pyjra.logger import LOG
+LOG.define_logging_level('emailer', 19)
+LOG.set_level(min(LOG.level, 19))
 
 import smtplib
 from os.path import basename
@@ -202,7 +205,7 @@ class EmailHandler:
             LOG.error("Connection already open.")
             return
         
-        LOG.info(f"Attempting to connect to {self.params['email']} on {self.params['smtp']}...")
+        LOG.emailer(f"Attempting to connect to {self.params['email']} on {self.params['smtp']}...")
         try:
             self.connection = smtplib.SMTP(self.params['smtp'], self.params['port'])
         except gaierror as e:
@@ -223,7 +226,7 @@ class EmailHandler:
             raise
         else:
             self.connected = True
-            LOG.info(f"Successfully connected to {self.params['email']} on {self.params['smtp']}.")
+            LOG.emailer(f"Successfully connected to {self.params['email']} on {self.params['smtp']}.")
             return
     
     def send_email(
@@ -278,7 +281,7 @@ class EmailHandler:
         if not self.connected:
             self.connect_to_smtp()
             
-        LOG.info(f"Attempting to build email from {self.params['email']}...")
+        LOG.emailer(f"Attempting to build email from {self.params['email']}...")
         message_alt = MIMEMultipart('alternative')                
         message_alt.attach(MIMEText(body_alt_text, "plain"))
         if body_html is not None:
@@ -301,7 +304,7 @@ class EmailHandler:
                     LOG.critical(f'Unexpected {type(e)} error occurred whilst attaching "{file_basename}". {e}')
                     raise
                 else:
-                    LOG.info(f'Attached file {file_basename} successfully.')
+                    LOG.emailer(f'Attached file {file_basename} successfully.')
         else:
             message_mix = message_alt
         
@@ -309,16 +312,16 @@ class EmailHandler:
         message_mix["From"] = self.params["email"]
         message_mix["To"] = ",".join(to)
         message_mix["Cc"] = ",".join(cc)
-        LOG.info("Email built!")
+        LOG.emailer("Email built!")
 
         try:
-            LOG.info(f"Sending email from {self}...")
+            LOG.emailer(f"Sending email from {self}...")
             self.connection.sendmail(message_mix["From"], to + cc + bcc, message_mix.as_string())
         except Exception as e:
             LOG.error(f"Unexpected {type(e)} error occurred when attempting to send email. {error}.")
             raise
         else:
-            LOG.info("Email sent successfully!")
+            LOG.emailer("Email sent successfully!")
             return
             
     def close_connection(self):
@@ -349,5 +352,5 @@ class EmailHandler:
             raise
         else:
             self.connected = False
-            LOG.info(f"Closed connection to {self}.")
+            LOG.emailer(f"Closed connection to {self}.")
             return
