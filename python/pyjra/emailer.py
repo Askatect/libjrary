@@ -1,9 +1,9 @@
 """
 # emailer.py
 
-Version: 1.1
+Version: 1.2
 Authors: JRA
-Date: 2024-02-12
+Date: 2024-03-19
 
 #### Explanation:
 Contains the EmailHandler class for sending emails.

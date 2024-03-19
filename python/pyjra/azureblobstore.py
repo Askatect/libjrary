@@ -1,9 +1,9 @@
 """
 # azureblobstore.py
 
-Version: 1.4
+Version: 1.5
 Authors: JRA
-Date: 2024-03-04
+Date: 2024-03-19
 
 #### Explanation:
 Contains the AzureBlobHandler class for handling Azure blobs.

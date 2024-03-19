@@ -1,9 +1,9 @@
 """
 # pyjra.utilities
 
-Version: 1.0
+Version: 1.1
 Authors: JRA
-Date: 2024-03-05
+Date: 2024-03-19
 
 #### Explanation:
 Useful Python utility items.

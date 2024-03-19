@@ -3,7 +3,7 @@
 
 Version: 3.2
 Authors: JRA
-Date: 2024-02-23
+Date: 2024-03-19
 
 #### Explanation:
 Contains the sqlhandler class for operating on SQL Server databases.

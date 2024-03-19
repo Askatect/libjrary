@@ -1,7 +1,7 @@
 """
 # logger.py
 
-Version: 1.1.0
+Version: 2.0
 Authors: JRA
 Date: 2024-03-19
 
