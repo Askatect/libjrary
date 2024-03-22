@@ -1,9 +1,9 @@
 """
 # azureblobstore.py
 
-Version: 1.5
+Version: 1.6
 Authors: JRA
-Date: 2024-03-19
+Date: 2024-03-22
 
 #### Explanation:
 Contains the AzureBlobHandler class for handling Azure blobs.
@@ -24,6 +24,7 @@ Contains the AzureBlobHandler class for handling Azure blobs.
 >>> from pyjra.azureblobstore import AzureBlobHandler
 
 #### History:
+- 1.6 JRA (2024-03-22): AzureBlobHandler v1.6.
 - 1.5 JRA (2024-03-19): AzureBlobHandler v1.5 and implemented LOG v2.0.
 - 1.4 JRA (2024-03-04): AzureBlobHandler v1.4.
 - 1.3 JRA (2024-03-01): AzureBlobHandler v1.3.
@@ -41,15 +42,16 @@ LOG.set_level(min(LOG.level, 18))
 import keyring as kr
 import pandas as pd
 from io import StringIO
+from io import BytesIO
 from azure.storage.blob import BlobServiceClient, ContainerClient, BlobClient
     
 class AzureBlobHandler:
     """
     ## AzureBlobHandler
 
-    Version: 1.5
+    Version: 1.6
     Authors: JRA
-    Date: 2024-03-19
+    Date: 2024-03-22
 
     #### Explanation:
     Handles Azure blobs.
@@ -62,9 +64,11 @@ class AzureBlobHandler:
     - get_blobs (func): Retrieves a list of blobs in a specified container.
     - get_blob_names (func): Retrieves a list of blob names in a specified container.
     - get_blob_as_bytes (func): Retrieves the content of a blob as bytes.
+    - get_blob_as_byte_stream (func): Retrieves the content of a blob as a stream of bytes.
     - get_blob_as_string (func): Retrieves the content of a blob as a string.
     - get_blob_csv_as_stream (func): Retrieves the content of a blob as a string stream.
     - get_blob_csv_as_dataframe (func): Retrieves the content of a CSV blob as a DataFrame.
+    - get_blob_as_tabular (func): Supports retrieval of csv, xls and xlsx blobs as Tabular objects.
     - copy_blob (func): Copies a blob from one location to another.
     - delete_blob (func): Deletes a blob from a container.
     - rename_blob (func): Renames a blob within a container.
@@ -79,6 +83,7 @@ class AzureBlobHandler:
     ['folder/file.ext', 'data.csv']
 
     #### History:
+    - 1.6 JRA (2024-03-22): get_blob_as_byte_stream v1.0 and get_blob_as_tabular v1.0.
     - 1.5 JRA (2024-03-19): write_to_blob_csv v1.4.
     - 1.4 JRA (2024-03-04): write_to_blob_csv v1.3.
     - 1.3 JRA (2024-03-01): write_to_blob_csv v1.2.
@@ -232,6 +237,36 @@ class AzureBlobHandler:
         LOG.azure(f'Retrieving "{blob}" from "{container}" in {str(self)} as bytes.')
         blob_client = self.__storage_client.get_blob_client(container, blob)
         return blob_client.download_blob().readall()
+    
+    def get_blob_as_byte_stream(self, container: str, blob: str) -> BytesIO:
+        """
+        ### get_blob_as_bytes_stream
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-22
+
+        #### Explanation:
+        Retrieves the content of a blob as a stream of bytes.
+
+        #### Requirements:
+        - AzureBlobHandler.get_blob_as_bytes (func)
+
+        #### Parameters:
+        - container (str): The container of the blob.
+        - blob (str): The name of the blob.
+
+        #### Returns:
+        - (io.BytesIO)
+
+        #### Usage:
+        >>> aztore.get_blob_as_byte_stream('container', 'folder/file.xls')
+
+        #### History:
+        - 1.0 JRA (2024-03-22): Initial version.
+        """
+        LOG.azure(f'reading "{blob}" from "{container}" in {str(self)} as a byte stream.')
+        return BytesIO(self.get_blob_as_bytes('etlintegrationfiles', 'CT End FEB 2024.xls'))
         
     def get_blob_as_string(self, container: str, blob: str, encoding: str = "utf-8") -> str:
         """
@@ -330,6 +365,88 @@ class AzureBlobHandler:
         LOG.azure(f'Loading "{blob}" from "{container}" in {str(self)} into a dataframe.')
         return pd.read_csv(StringIO(self.get_blob_as_string(container, blob, encoding)), header = header)
     
+    def get_blob_as_tabular(
+        self, 
+        container: str, 
+        blob: str, 
+        encoding: str = 'utf-8', 
+        row_separator: str = '\n', 
+        col_separator: str = ',', 
+        header: bool = True,
+        sheet_index: int = 0
+    ) -> Tabular:
+        """
+        ### get_blob_as_tabular
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-22
+
+        #### Explanation:
+        Supports retrieval of csv, xls and xlsx blobs as Tabular objects.
+
+        #### Requirements:
+        - AzureBlobHandler.get_blob_csv_as_stream (func)
+        - AzureBlobHandler.get_blob_as_byte_stream (func)
+        - xlrd.open_workbook (func)
+        - openpyxl.load_workbook (func)
+
+        #### Parameters:
+        - container (str): The container of the blob.
+        - blob (str): The name of the blob.
+        - encoding (str): The encoding to decode the blob with if a csv. Defaults to 'utf-8'.
+        - row_separator (str): The row separator to use with a csv. Defaults to a new line.
+        - col_separator (str): The column separator to use with a csv. Defaults to a comma.
+        - header (bool): If true, the first row of data is used as column names. Defaults to true.
+        - sheet_index (int): The sheet index to read from an Excel file. Defaults to the first sheet.
+        
+        #### Returns:
+        - data (Tabular): The tabulated data from the blob.
+
+        #### Usage:
+        >>> aztore.get_blob_as_tabular('container', 'folder/file.csv')
+        <Tabular>
+
+        #### History:
+        - 1.0 JRA (2024-03-22): Initial version.
+        """
+        file_extension = blob.split('.')[-1].lower()
+        if file_extension == 'csv':
+            data = self.get_blob_csv_as_stream(
+                container = container,
+                blob = blob,
+                encoding = encoding,
+                row_separator = '\n'
+            )
+            data = Tabular(
+                data = data,
+                row_separator = row_separator,
+                col_separator = col_separator,
+                header = header,
+                name = blob
+            )
+        elif file_extension == 'xls':
+            from xlrd import open_workbook
+            data = self.get_blob_as_byte_stream(container = container, blob = blob)
+            data = open_workbook(file_contents = data.read()).sheet_by_index(sheet_index)
+            data = Tabular(
+                data = [tuple(data.row_values(r)) for r in range(data.nrows)],
+                datatypes = [str]*data.ncols,
+                header = header,
+                name = blob
+            )
+        elif file_extension == 'xlsx':
+            from openpyxl import load_workbook
+            data = self.get_blob_as_byte_stream(container = container, blob = blob)
+            data = load_workbook(filename = data)[sheet_index]
+            data = Tabular(
+                data = [tuple(row) for row in data.iter_rows(values_only = True)],
+                datatypes = [str]*data.max_column,
+                header = header,
+                name = blob
+            )
+        return data
+
     def copy_blob(
         self, 
         source_container: str, 

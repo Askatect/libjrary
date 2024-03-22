@@ -1,9 +1,9 @@
 """
 # pyjra.utilities
 
-Version: 1.1
+Version: 1.2
 Authors: JRA
-Date: 2024-03-19
+Date: 2024-03-22
 
 #### Explanation:
 Useful Python utility items.
@@ -36,6 +36,7 @@ Useful Python utility items.
 >>> from pyjra.utilities import Tabular
 
 #### History:
+- 1.2 JRA (2024-03-22): Tabular v1.1.
 - 1.1 JRA (2024-03-19): Implemented LOG v2.0.
 - 1.0 JRA (2024-03-05): Initial version.
 """
@@ -805,9 +806,9 @@ class Tabular():
     """
     ## Tabular
 
-    Version: 1.0
+    Version: 1.1
     Authors: JRA
-    Date: 2024-03-05
+    Date: 2024-03-21
 
     #### Explanation:
     Class for handling tabulated data.
@@ -837,6 +838,7 @@ class Tabular():
     - col_pos (func): Returns the column number of a given column name.
     - delete_columns (func): Delete columns from the current Tabular.
     - get_column (func): Retrieves a column from the data.
+    - insert (func): Inserts a row to the end of the table.
     - to_dataframe (func): Converts the Tabular to a pandas DataFrame.
     - to_dict (func): Returns a row of the data, with columns as keys and cells as values.
     - to_delimited (func): Returns the Tabular as a delimited string.
@@ -869,6 +871,7 @@ class Tabular():
     [<class 'int'>, <class 'int'>, <class 'int'>]
 
     #### History:
+    - 1.1 JRA (2024-03-22): __init__ v1.1, __validata v1.1 and insert v1.0.
     - 1.0 JRA (2024-03-05): Initial version.
     """
     def __init__(
@@ -878,15 +881,15 @@ class Tabular():
         datatypes: list[type] = None,
         row_separator: str = '\n',
         col_separator: str = ',',
-        header: bool = True,
+        header: bool = None,
         name: str = None
     ):
         """
         ### __init__
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-03-05
+        Date: 2024-03-22
 
         #### Explanation:
         Initialises the Tabular class.
@@ -900,9 +903,9 @@ class Tabular():
         - data (list[tuple]): The data stored in the Tabular.
         - columns (list[str]): The columns of the Tabular.
         - datatypes (list[type]): The datatypes of the Tabular.
-        - row_count(int): The number of rows in the Tabular.
-        - col_count (int): The number of columns in the Tabular.
-        - row_based (bool): If true, this indicates that the data is stored as a list of rows. If false, the data is stored as a list of columns.
+        - row_separator (str): The row separator to consider when data is a delimited string. Defaults to new line.
+        - col_separator (str): The column separator to consider when data is a delimited string. Defaults to a comma.
+        - header (bool): If true, the first row of data is treated as a list of columns. Defaults to true for string input and false for a list of tuples.
         - name (str): The name to associate with the Tabular (optional). Defaults to None.
 
         #### Usage:
@@ -913,6 +916,7 @@ class Tabular():
             )
 
         #### History:
+        - 1.1 JRA (2024-03-22): Adjusted the behaviour of the header bool.
         - 1.0 JRA (2024-03-05): Initial version.
         """
         LOG.utilities('Checking columns are a list of strings...')
@@ -941,6 +945,8 @@ class Tabular():
         
         if isinstance(data, str) or isinstance(data, StringIO):
             LOG.utilities('Extracting data from a delimited string or stream...')
+            if header is None:
+                header = True
             from csv import reader
             if isinstance(data, str):
                 data = StringIO(data)
@@ -953,9 +959,10 @@ class Tabular():
             else:
                 columns = columns or None
             self.datatypes = datatypes or len(columns)*[str]
-
-        if isinstance(data, list):
-            error = self.__validata(data, columns, datatypes)
+        elif isinstance(data, list):
+            if header is None:
+                header = False
+            error = self.__validata(data, columns, datatypes, header)
             if error is not None:
                 LOG.error(error)
                 raise ValueError(error)
@@ -972,6 +979,10 @@ class Tabular():
             self.datatypes = [type(value) for value in data.values()]
             self.columns = data.keys()
             self.data = [tuple(data.values())]
+        else:
+            error = f'Type {type(data)} not supported for Tabular.'
+            LOG.error(error)
+            raise ValueError(error)
 
         self.name = name
         self.row_based = True
@@ -997,7 +1008,7 @@ class Tabular():
                     raise ValueError(e)
                 
         self.transpose(row_based = True)
-        LOG.utilities(f'Successfully instanced {self.name or 'Tabular'}!')
+        LOG.utilities(f'Successfully instanced {self.name or "Tabular"}!')
         return
     
     def __str__(self) -> str:
@@ -1139,14 +1150,15 @@ class Tabular():
         self,
         data: list[tuple] = None, 
         columns: list[str] = None,
-        datatypes: list[str] = None
+        datatypes: list[str] = None,
+        header: bool = False
     ):
         """
         ### __validata
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-03-05
+        Date: 2024-03-22
 
         #### Explanation:
         The validation process for raw data that checks the following.
@@ -1161,24 +1173,33 @@ class Tabular():
         - data (list[tuple]): The data stored in the Tabular.
         - columns (list[str]): The columns of the Tabular.
         - datatypes (list[type]): The datatypes of the Tabular.
+        - header (bool): If true, the first row is used for the list of columns.
         
         #### Usage:
         >>> matrix.__validata(data = [(1, 2, 3), (4, 5, 6), (7, 8, 9)], columns = ['v1', 'v2', 'v3'])
 
         #### History:
+        - 1.1 JRA (2024-03-22): Added header.
         - 1.0 JRA (2024-03-05): Initial version.
         """
         LOG.utilities('Checking data is a list...')
         if not isinstance(data, list):
             return "The `data` parameter should be a list."
-
+        
         LOG.utilities('Measuring number of columns...')
         if columns is not None:
             self.col_count = len(columns)
         elif datatypes is not None:
-            self.col_count = len(columns)
+            self.col_count = len(datatypes)
         else:
             self.col_count = len(data[0])
+
+        LOG.utilities('Checking that all rows are tuples of the correct length...')
+        for row in data:
+            if not isinstance(row, tuple):
+                return "All rows of data should be tuples."
+            if self.col_count != len(row):
+                return "All rows of the data should be the same length and should be the length of the number of columns if supplied."
         
         LOG.utilities('Measuring number of rows...')
         self.row_count = len(data)
@@ -1188,15 +1209,13 @@ class Tabular():
             return "Number of provided columns does not match the data."
         else:
             LOG.utilities('Building columns list...')
-            columns = columns or [f"Column{c + 1}" for c in range(self.col_count)]
+            if header:
+                columns = list(data[0])
+                data = data[1:]
+                self.row_count -= 1
+            else:
+                columns = columns or [f"Column{c + 1}" for c in range(self.col_count)]
 
-        LOG.utilities('Checking that all rows are tuples of the correct length...')
-        for row in data:
-            if not isinstance(row, tuple):
-                return "All rows of data should be tuples."
-            if self.col_count != len(row):
-                return "All rows of the data should be the same length and should be the length of the number of columns if supplied."
-            
         if datatypes is not None:
             LOG.utilities('Checking number datatypes...')
             if len(datatypes) != self.col_count:
@@ -1205,8 +1224,8 @@ class Tabular():
             LOG.utilities('Building datatypes list...')
             datatypes = []
             for c in range(self.col_count):
+                datatype = type(None)
                 for r in range(self.row_count):
-                    datatype = type(None)
                     if data[r][c] is not None:
                         datatype = type(data[r][c])
                         break
@@ -1267,7 +1286,7 @@ class Tabular():
         self.col_count = col_count
         self.row_based = row_based
         self.name = name
-        LOG.utilities(f'Instanced {name or 'Tabular'} without checks.')
+        LOG.utilities(f'Instanced {name or "Tabular"} without checks.')
         return
     
     @staticmethod
@@ -1356,18 +1375,20 @@ class Tabular():
         """
         if row_based is not None:
             if self.row_based == row_based:
-                LOG.utilities(f'No tranposition of {self.name or 'Tabular'} required.')
+                LOG.utilities(f'No tranposition of {self.name or "Tabular"} required.')
                 return
         else:
             row_based = not self.row_based
         self.row_based = row_based
         data = []
         if row_based:
-            LOG.utilities(f'Transposing {self.name or 'Tabular'} to row-based storage.')
+            LOG.utilities(f'Transposing {self.name or "Tabular"} to row-based storage.')
             for r in range(self.row_count):
                 data.append(tuple([self.data[c][r] for c in range(self.col_count)]))
         else:
-            LOG.utilities(f'Transposing {self.name or 'Tabular'} to column-based storage.')
+            LOG.utilities(f'Transposing {self.name or "Tabular"} to column-based storage.')
+            for r in range(self.row_count):
+                print(f'{r}: {len(self.data[r])}')
             for c in range(self.col_count):
                 data.append(tuple([self.data[r][c] for r in range(self.row_count)]))
         self.data = data
@@ -1498,6 +1519,40 @@ class Tabular():
         self.transpose(row_based = True)
         return output
     
+    def insert(self, row: tuple):
+        """
+        ### insert
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-22
+
+        #### Explanation:
+        Inserts a row to the end of the table.
+
+        #### Parameters:
+        - row (tuple): The row to be added.
+
+        #### Returns:
+        - self (Tabular)
+
+        #### Usage:
+        >>> matrix.insert((10, 11, 12))
+
+        #### Tasklist:
+        - Add option to insert at a given index.
+
+        #### History:
+        - 1.0 JRA (2024-03-22): Initial version.
+        """
+        for c in range(self.col_count):
+            if not isinstance(row[c], self.datatypes[c]):
+                error = f'Datatypes of insert row did not match existing datatypes of {self.name or "Tabular"}.'
+                LOG.error(error)
+                raise ValueError(error)
+        self.data.append(row)
+        return self
+
     def to_dataframe(self) -> DataFrame:
         """
         ### to_dataframe
@@ -1519,7 +1574,7 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
-        LOG.utilities(f'Writing {self.name or 'Tabular'} to a DataFrame.')
+        LOG.utilities(f'Writing {self.name or "Tabular"} to a DataFrame.')
         self.transpose(row_based = True)
         return DataFrame(data = self.data, columns = self.columns)
     
@@ -1547,7 +1602,7 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
-        LOG.utilities(f'Writing row {row} of {self.name or 'Tabular'} to a dictionary.')
+        LOG.utilities(f'Writing row {row} of {self.name or "Tabular"} to a dictionary.')
         self.transpose(row_based = True)
         return dict(zip(self.columns, self.data[row]))
     
@@ -1590,7 +1645,7 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
-        LOG.utilities(f'Writing {self.name or 'Tabular'} to a delimited string.')
+        LOG.utilities(f'Writing {self.name or "Tabular"} to a delimited string.')
         self.transpose(row_based = True)
         output = row_separator.join([col_separator.join([wrap_left + str(value or "") + wrap_right for value in row]) for row in self.data])
         if header:
@@ -1635,7 +1690,7 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
-        LOG.utilities(f'Writing {self.name or 'Tabular'} to a stream.')
+        LOG.utilities(f'Writing {self.name or "Tabular"} to a stream.')
         self.transpose(row_based = True)
         return StringIO(self.to_delimited(row_separator, col_separator, header, wrap_left, wrap_right))
         
@@ -1703,7 +1758,7 @@ class Tabular():
         #### History:
         - 1.0 JRA (2024-03-05): Initial version.
         """
-        LOG.utilities(f'Writing {self.name or 'Tabular'} to HTML...')
+        LOG.utilities(f'Writing {self.name or "Tabular"} to HTML...')
         col_info = []
         for c in range(self.col_count):
             col_info.append({'numeric': False})
@@ -1747,5 +1802,5 @@ class Tabular():
                 html += f'\t\t<td style="border:1px solid {colours["black"]};background-color:{background};color:{fontcolour}">{str(value)}</td>\n'
             html += '\t</tr>\n'
         html += '</table>'
-        LOG.utilities(f'Successfully wrote {self.name or 'Tabular'} to HTML.')
+        LOG.utilities(f'Successfully wrote {self.name or "Tabular"} to HTML.')
         return html
