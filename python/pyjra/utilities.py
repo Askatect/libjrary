@@ -951,18 +951,12 @@ class Tabular():
             if isinstance(data, str):
                 data = StringIO(data)
             data = [tuple(row) for row in reader(data)]
+            self.datatypes = datatypes or len(data[0])*[str]
+        
+        if isinstance(data, list):
             for r in range(len(data)):
                 data[r] = tuple(None if value == "" else value for value in data[r])
-            if header and columns is None:
-                columns = list(data[0])
-                data = data[1:]
-            else:
-                columns = columns or None
-            self.datatypes = datatypes or len(columns)*[str]
-        elif isinstance(data, list):
-            if header is None:
-                header = False
-            error = self.__validata(data, columns, datatypes, header)
+            error = self.__validata(data, columns, datatypes, (False if header is None else header))
             if error is not None:
                 LOG.error(error)
                 raise ValueError(error)
@@ -1387,8 +1381,6 @@ class Tabular():
                 data.append(tuple([self.data[c][r] for c in range(self.col_count)]))
         else:
             LOG.utilities(f'Transposing {self.name or "Tabular"} to column-based storage.')
-            for r in range(self.row_count):
-                print(f'{r}: {len(self.data[r])}')
             for c in range(self.col_count):
                 data.append(tuple([self.data[r][c] for r in range(self.row_count)]))
         self.data = data

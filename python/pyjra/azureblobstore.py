@@ -1,9 +1,9 @@
 """
 # azureblobstore.py
 
-Version: 1.6
+Version: 1.7
 Authors: JRA
-Date: 2024-03-22
+Date: 2024-03-26
 
 #### Explanation:
 Contains the AzureBlobHandler class for handling Azure blobs.
@@ -24,6 +24,7 @@ Contains the AzureBlobHandler class for handling Azure blobs.
 >>> from pyjra.azureblobstore import AzureBlobHandler
 
 #### History:
+- 1.7 JRA (2024-03-26): AzureBlobHandler v1.7.
 - 1.6 JRA (2024-03-22): AzureBlobHandler v1.6.
 - 1.5 JRA (2024-03-19): AzureBlobHandler v1.5 and implemented LOG v2.0.
 - 1.4 JRA (2024-03-04): AzureBlobHandler v1.4.
@@ -49,9 +50,9 @@ class AzureBlobHandler:
     """
     ## AzureBlobHandler
 
-    Version: 1.6
+    Version: 1.7
     Authors: JRA
-    Date: 2024-03-22
+    Date: 2024-03-26
 
     #### Explanation:
     Handles Azure blobs.
@@ -72,6 +73,7 @@ class AzureBlobHandler:
     - copy_blob (func): Copies a blob from one location to another.
     - delete_blob (func): Deletes a blob from a container.
     - rename_blob (func): Renames a blob within a container.
+    - write_to_blob (func): Writes data to a given blob name, optionally overwriting existing blobs.
     - write_to_blob_csv (func): Writes a blob csv from a DataFrame or pyjra.utilities.Tabular into the specified container.
 
     #### Returns:
@@ -83,6 +85,7 @@ class AzureBlobHandler:
     ['folder/file.ext', 'data.csv']
 
     #### History:
+    - 1.7 JRA (2024-03-26): write_to_blob v1.0 and write_to_blob_csv v1.5.
     - 1.6 JRA (2024-03-22): get_blob_as_byte_stream v1.0 and get_blob_as_tabular v1.0.
     - 1.5 JRA (2024-03-19): write_to_blob_csv v1.4.
     - 1.4 JRA (2024-03-04): write_to_blob_csv v1.3.
@@ -91,7 +94,7 @@ class AzureBlobHandler:
     - 1.1 JRA (2024-02-27): Added get_blob_csv_as_stream.
     - 1.0 JRA (2024-02-06): Initial version.
     """
-    def __init__( # Add parameters to this, a la SQLHandler.
+    def __init__(
         self,
         environment: str = None,
         connection_string: str = None
@@ -113,6 +116,9 @@ class AzureBlobHandler:
         #### Usage: 
         >>> aztore = AzureBlobHandler(environment = 'DEV')
         ['folder/file.ext', 'data.csv']
+
+        #### Tasklist:
+        - Revise parameter collection.
 
         #### History: 
         - 1.0 JRA (2024-02-06): Initial version.
@@ -265,8 +271,8 @@ class AzureBlobHandler:
         #### History:
         - 1.0 JRA (2024-03-22): Initial version.
         """
-        LOG.azure(f'reading "{blob}" from "{container}" in {str(self)} as a byte stream.')
-        return BytesIO(self.get_blob_as_bytes('etlintegrationfiles', 'CT End FEB 2024.xls'))
+        LOG.azure(f'Reading "{blob}" from "{container}" in {str(self)} as a byte stream.')
+        return BytesIO(self.get_blob_as_bytes(container, blob))
         
     def get_blob_as_string(self, container: str, blob: str, encoding: str = "utf-8") -> str:
         """
@@ -429,22 +435,31 @@ class AzureBlobHandler:
             from xlrd import open_workbook
             data = self.get_blob_as_byte_stream(container = container, blob = blob)
             data = open_workbook(file_contents = data.read()).sheet_by_index(sheet_index)
+            col_count = data.ncols
+            data = [tuple(data.row_values(r)) for r in range(data.nrows)]
+            for r, row in enumerate(data):
+                data[r] = (None if value == '' else value for value in row)
             data = Tabular(
-                data = [tuple(data.row_values(r)) for r in range(data.nrows)],
-                datatypes = [str]*data.ncols,
+                data = data,
+                datatypes = [str]*col_count,
                 header = header,
                 name = blob
             )
         elif file_extension == 'xlsx':
             from openpyxl import load_workbook
             data = self.get_blob_as_byte_stream(container = container, blob = blob)
-            data = load_workbook(filename = data)[sheet_index]
+            data = load_workbook(filename = data)
+            data = data[data.sheetnames[sheet_index]]
             data = Tabular(
                 data = [tuple(row) for row in data.iter_rows(values_only = True)],
                 datatypes = [str]*data.max_column,
                 header = header,
                 name = blob
             )
+        else:
+            error = f'File extension .{file_extension} is not supported.'
+            LOG.error(error)
+            raise NotImplementedError(error)
         return data
 
     def copy_blob(
@@ -550,6 +565,43 @@ class AzureBlobHandler:
         self.delete_blob(container, old_blob)
         return
     
+    def write_to_blob(
+        self,
+        container: str,
+        blob: str,
+        data: bytes|str|BytesIO|StringIO,
+        force: bool = False
+    ):
+        """
+        ### write_to_blob
+
+        Version: 1.0
+        Authors: JRA
+        Date: 2024-03-26
+
+        #### Explanation:
+        Writes data to a given blob name, optionally overwriting existing blobs.
+
+        #### Parameters:
+        - container (str): The container to upload to.
+        - blob (str): The blob name to upload to.
+        - data (bytes|str|io.BytesIO|io.StringIO): The data to store in the blob.
+        - force (bool): If true, any existing blob of the same name is overwritten. Defaults to false.
+
+        #### Usage:
+        >>> aztore.write_to_blob('container', 'folder/file.txt', b'Hello World!', False)
+
+        #### Tasklist:
+        - Does data need to be encoded before upload?
+
+        #### History:
+        - 1.0 JRA (2024-03-26): Initial version.
+        """
+        container_client = self.__storage_client.get_container_client(container = container)
+        container_client.upload_blob(name = blob, data = data, overwrite = force)
+        LOG.azure(f'Successfully written blob to {container} on {self}.')
+        return        
+
     def write_to_blob_csv(
         self, 
         container: str, 
@@ -561,9 +613,9 @@ class AzureBlobHandler:
         """
         ### write_to_blob_csv
 
-        Version: 1.3
+        Version: 1.5
         Authors: JRA
-        Date: 2024-03-04
+        Date: 2024-03-26
 
         #### Explanation:
         Writes a blob csv from a DataFrame or pyjra.utilities.Tabular into the specified container.
@@ -579,6 +631,7 @@ class AzureBlobHandler:
         >>> write_to_blob_csv('container', 'folder/file.csv', data)
 
         #### History:
+        - 1.5 JRA (2024-03-26): Implemented write_to_blob.
         - 1.4 JRA (2024-03-19): Added logging.
         - 1.3 JRA (2024-03-04): Added force.
         - 1.2 JRA (2024-03-01): Added encoding.
@@ -600,7 +653,10 @@ class AzureBlobHandler:
             error = f'Datatype {type(data)} is not supported for AzureBlobHandler.write_to_blob_csv.'
             LOG.error(error)
             raise ValueError(error)
-        container_client = self.__storage_client.get_container_client(container = container)
-        container_client.upload_blob(name = blob, data = data, overwrite = force)
-        LOG.azure(f'Successfully written blob to {container} on {self}.')
+        self.write_to_blob(
+            container = container,
+            blob = blob,
+            data = data,
+            force = force
+        )
         return
