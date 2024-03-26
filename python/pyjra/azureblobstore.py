@@ -45,6 +45,7 @@ import pandas as pd
 from io import StringIO
 from io import BytesIO
 from azure.storage.blob import BlobServiceClient, ContainerClient, BlobClient
+from azure.core.exceptions import ResourceNotFoundError
     
 class AzureBlobHandler:
     """
@@ -85,7 +86,7 @@ class AzureBlobHandler:
     ['folder/file.ext', 'data.csv']
 
     #### History:
-    - 1.7 JRA (2024-03-26): write_to_blob v1.0 and write_to_blob_csv v1.5.
+    - 1.7 JRA (2024-03-26): copy_blob v1.1, write_to_blob v1.0 and write_to_blob_csv v1.5.
     - 1.6 JRA (2024-03-22): get_blob_as_byte_stream v1.0 and get_blob_as_tabular v1.0.
     - 1.5 JRA (2024-03-19): write_to_blob_csv v1.4.
     - 1.4 JRA (2024-03-04): write_to_blob_csv v1.3.
@@ -472,9 +473,9 @@ class AzureBlobHandler:
         """
         ### copy_blob
 
-        Version: 1.0
+        Version: 1.1
         Authors: JRA
-        Date: 2024-02-06
+        Date: 2024-03-26
 
         #### Explanation: 
         Copies a blob from one location to another.
@@ -489,6 +490,7 @@ class AzureBlobHandler:
         >>> aztore.copy_blob('container1', 'folder/file.ext', 'container2')
 
         #### History:
+        - 1.1 JRA (2024-03-26): Error handling for missing blobs.
         - 1.0 JRA (2024-02-06): Initial version.
         """
         if target_container is None:
@@ -498,7 +500,14 @@ class AzureBlobHandler:
         LOG.azure(f'Copying "{source_blob}" from "{source_container}" to "{target_blob}" in "{target_container}" at {str(self)}.')
         source_blob_client = self.__storage_client.get_blob_client(source_container, source_blob)
         target_blob_client = self.__storage_client.get_blob_client(target_container, target_blob)
-        target_blob_client.start_copy_from_url(source_blob_client.url)
+        try:
+            target_blob_client.start_copy_from_url(source_blob_client.url)
+        except ResourceNotFoundError as e:
+            LOG.error(f'Could not find blob "{source_blob}" in {self}. {e}')
+            raise e
+        except Exception as e:
+            LOG.critical(f'Unexpected {type(e)} error occurred during copy of "{source_blob}" in {self}. {e}')
+            raise e
         return
     
     def delete_blob(self, container: str, blob: str):
